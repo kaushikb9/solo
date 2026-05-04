@@ -12,11 +12,13 @@ V0 — pre-implementation. Design is settled; code starts next.
 
 | Doc | Purpose |
 |---|---|
-| [`requirements.md`](requirements.md) | Problem statement, design principles, behavior constraints |
-| [`claude-solution.md`](claude-solution.md) | Chosen architecture, tech stack, hosting |
-| [`pi-solution.md`](pi-solution.md) | Alternate architecture (rejected — kept for context) |
-| [`CLAUDE.md`](CLAUDE.md) | Working agreement for agents (and humans) editing this repo |
-| [`docs/`](docs/) | Concept primers and Architecture Decision Records |
+| [`AGENTS.md`](AGENTS.md) | **Canonical agent guidance — tool-agnostic.** Read first if you're an agent (Claude Code, Pi, Codex, etc.) |
+| [`docs/requirements.md`](docs/requirements.md) | Problem statement, design principles, behavior constraints |
+| [`docs/architecture.md`](docs/architecture.md) | Chosen architecture, tech stack, hosting |
+| [`docs/alternates/pi-runtime.md`](docs/alternates/pi-runtime.md) | Alternate architecture (rejected — kept for context) |
+| [`docs/status.md`](docs/status.md) | Current state, what's done, what's next |
+| [`docs/concepts/`](docs/concepts/) | AI/agent concept primers (compound learning) |
+| [`docs/decisions/`](docs/decisions/) | Architecture Decision Records made during implementation |
 
 ## Stack
 
@@ -34,17 +36,9 @@ uv run python scripts/eval.py        # classifier eval
 
 ## Working with agents
 
-This repo is built to be agent-collaborative. Two layers:
+This repo is tool-agnostic. The canonical guidance is [`AGENTS.md`](AGENTS.md), read by any agent on any tool.
 
-1. **Methodology layer** — install [superpowers](https://github.com/obra/superpowers) once at user level: `/plugin install superpowers@claude-plugins-official`. Gives you `/brainstorm`, `/write-plan`, `/execute-plan`, TDD skill, generic code-reviewer.
-
-2. **Solo-specific layer** — lives in this repo:
-   - `CLAUDE.md` — project context and conventions agents must follow
-   - `.claude/agents/solo-reviewer.md` — checks LLMClient discipline, traces, prompts-as-files
-   - `.claude/commands/concept.md` — `/concept <topic>` writes a noob-friendly primer
-   - `.claude/commands/decision.md` — `/decision <topic>` writes an ADR
-
-Use both. Superpowers tells you *how* to build; this repo's scaffolding tells you *what's true about solo*.
+The author works across multiple setups: Claude Code (Opus 4.7) with the [superpowers](https://github.com/obra/superpowers) plugin, Pi with Kimi-K2.6, Codex with GPT 5.5. Tool-specific scaffolding lives in `.claude/` (Claude Code only); the conventions themselves are universal — see `AGENTS.md` for the per-tool notes.
 
 ## V0 scope
 
