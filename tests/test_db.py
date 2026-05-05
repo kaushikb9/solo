@@ -10,7 +10,9 @@ def db_path(tmp_path):
 def conn(db_path):
     from solo.db import get_connection
 
-    return get_connection(str(db_path))
+    conn = get_connection(str(db_path))
+    yield conn
+    conn.close()
 
 
 class TestSchema:
@@ -51,40 +53,40 @@ class TestInsertEntry:
     def test_inserted_row_is_readable(self, conn):
         from solo.db import insert_entry
 
-        insert_entry(
+        row_id = insert_entry(
             conn,
             raw_text="think about team structure",
             telegram_chat_id=123,
             telegram_message_id=789,
             telegram_message_json='{"text": "think about team structure"}',
         )
-        row = conn.execute("SELECT * FROM entries WHERE id = 1").fetchone()
+        row = conn.execute("SELECT * FROM entries WHERE id = ?", (row_id,)).fetchone()
         assert row is not None
 
     def test_classified_defaults_to_false(self, conn):
         from solo.db import insert_entry
 
-        insert_entry(
+        row_id = insert_entry(
             conn,
             raw_text="some thought",
             telegram_chat_id=123,
             telegram_message_id=1,
             telegram_message_json="{}",
         )
-        row = conn.execute("SELECT classified FROM entries WHERE id = 1").fetchone()
+        row = conn.execute("SELECT classified FROM entries WHERE id = ?", (row_id,)).fetchone()
         assert row[0] == 0
 
     def test_created_at_is_auto_set(self, conn):
         from solo.db import insert_entry
 
-        insert_entry(
+        row_id = insert_entry(
             conn,
             raw_text="another thought",
             telegram_chat_id=123,
             telegram_message_id=2,
             telegram_message_json="{}",
         )
-        row = conn.execute("SELECT created_at FROM entries WHERE id = 1").fetchone()
+        row = conn.execute("SELECT created_at FROM entries WHERE id = ?", (row_id,)).fetchone()
         assert row[0] is not None
 
 
