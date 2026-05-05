@@ -1,0 +1,25 @@
+src/solo/bot.py
+  1cb0e7abe2e71d34 3,18,30-44,48
+tests/test_bot.py
+  1cb0e7abe2e71d34 97-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "05d49d05f7606330e76821a4df21546c72ef2380",
+  "prompts": {
+    "1cb0e7abe2e71d34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "948f7642-d764-4a42-910c-336aee199998",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "kaushikb9",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 12,
+      "accepted_lines": 573,
+      "overriden_lines": 0
+    }
+  }
+}
