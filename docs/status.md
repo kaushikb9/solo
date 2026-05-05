@@ -6,30 +6,32 @@ Living doc. Update as part of any non-trivial change so the next agent (possibly
 
 ## Last updated
 
-**2026-05-04** — by Claude Code (Opus 4.7).
+**2026-05-05** — by Claude Code (Opus 4.6).
 
 ## Current state
 
-V0 scaffolding complete. **No implementation code yet.** Repo is set up for cross-tool agent collaboration:
+**V0 slice 1 (Telegram capture → SQLite) implemented.** Bot captures raw text messages and stores them in SQLite.
 
-- Design docs settled (`docs/requirements.md`, `docs/architecture.md`, `docs/alternates/pi-runtime.md`)
-- Agent guidance written (`AGENTS.md` canonical, `CLAUDE.md` pointer)
-- Convention scaffolding in place (`.claude/agents/solo-reviewer.md`, `.claude/commands/{concept,decision}.md`)
-- Documentation rituals in place (`docs/concepts/`, `docs/decisions/`)
-- Project skeleton (`pyproject.toml`, `src/solo/__init__.py`, `.env.example`, `.gitignore`)
-- superpowers plugin installed at user level (Claude Code only — re-install on each machine)
+Done:
+- `src/solo/db.py` — SQLite schema (`entries` table), `get_connection`, `insert_entry`, `get_recent_entries`
+- `src/solo/bot.py` — Telegram long-polling bot, `handle_message` with chat allowlist and defensive error handling
+- `tests/test_db.py` — 8 tests (schema, insert, query)
+- `tests/test_bot.py` — 6 tests (capture, metadata, allowlist, empty message, open allowlist, failure resilience)
+- 14 tests passing, ruff clean
+- `data/` directory set up with `.gitkeep`, gitignored for DB files
+
+Pending manual verification:
+- Smoke test with a real Telegram bot token (see Task 7 in `docs/superpowers/plans/2026-05-05-telegram-capture.md`)
 
 ## What's next
 
 Per `AGENTS.md` V0 scope, in order:
 
-1. **Telegram capture → SQLite.** Smallest first slice. Bot polls Telegram, every message becomes a raw row in `entries`. Reply with `captured`. No classification yet.
+1. ~~Telegram capture → SQLite~~ — done
 2. **`LLMClient` (OpenRouter) + `llm_calls` trace table.** Foundation for every subsequent LLM call.
 3. **Lazy classifier.** When `/top3` is invoked, classify any unclassified rows first.
 4. **`/top3` and `/log` commands.**
 5. **Classifier eval harness** (`evals/classify.jsonl` + `scripts/eval.py`).
-
-Recommended first slice: **#1 alone**. Ship Telegram capture before LLM anything. Validates the bot stack and the SQLite schema with zero LLM cost.
 
 ## Open decisions deferred to implementation
 
