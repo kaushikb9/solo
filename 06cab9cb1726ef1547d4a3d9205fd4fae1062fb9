@@ -1,4 +1,0 @@
-pyproject.toml
-  948f7642-d764-4a42-910c-336aee199998:2026-05-05T11:40:57.358Z 17
----
-{"schema_version": "authorship/3.0.0", "base_commit_sha": "HEAD~1", "prompts": {"948f7642-d764-4a42-910c-336aee199998:2026-05-05T11:40:57.358Z": {"agent_id": {"tool": "claude_code", "model": ""}, "human_author": "kaushik.bhat@razorpay.com", "accepted_lines": 1, "overriden_lines": 0}}}
