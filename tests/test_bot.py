@@ -94,3 +94,15 @@ class TestHandleMessage:
         await handle_message(update, ctx, conn=db_conn, allowed_chats=set())
 
         assert msg._replied == "captured"
+
+    @pytest.mark.asyncio
+    async def test_capture_failure_does_not_crash(self, db_conn):
+        msg = FakeMessage("will fail")
+        update = FakeUpdate(msg)
+        ctx = FakeContext()
+
+        db_conn.close()  # force DB error
+
+        await handle_message(update, ctx, conn=db_conn, allowed_chats={123})
+
+        assert msg._replied is None  # reply_text not reached, but no exception raised

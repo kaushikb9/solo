@@ -1,13 +1,12 @@
 import logging
 import os
+import sqlite3
 
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
 from solo.db import get_connection, insert_entry
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ async def handle_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
     *,
-    conn=None,
+    conn: sqlite3.Connection,
     allowed_chats: set[int] | None = None,
 ) -> None:
     if update.message is None or update.message.text is None:
@@ -28,17 +27,25 @@ async def handle_message(
         logger.warning("Rejected message from chat_id=%d", chat_id)
         return
 
-    insert_entry(
-        conn,
-        raw_text=update.message.text,
-        telegram_chat_id=chat_id,
-        telegram_message_id=update.message.message_id,
-        telegram_message_json=update.message.to_json(),
-    )
-    await update.message.reply_text("captured")
+    try:
+        insert_entry(
+            conn,
+            raw_text=update.message.text,
+            telegram_chat_id=chat_id,
+            telegram_message_id=update.message.message_id,
+            telegram_message_json=update.message.to_json(),
+        )
+        await update.message.reply_text("captured")
+    except Exception:
+        logger.exception(
+            "capture failed for chat_id=%d message_id=%d",
+            chat_id,
+            update.message.message_id,
+        )
 
 
 def main() -> None:
+    load_dotenv()
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     db_path = os.environ.get("SOLO_DB_PATH", "./data/solo.db")
 
