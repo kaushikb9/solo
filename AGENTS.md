@@ -122,7 +122,7 @@ Update `docs/status.md` as part of any non-trivial change. Cross-machine work ma
 
 ```bash
 uv sync                              # install deps
-uv run python -m solo.bot            # run bot (long polling)
+uv run python -m solo                # run bot (long polling)
 uv run pytest                        # tests
 uv run python scripts/eval.py        # classifier eval
 uv run ruff check .                  # lint

@@ -55,7 +55,7 @@ LLM access goes through **OpenRouter**: single API key, OpenAI-compatible endpoi
 
 | Aspect | Decision |
 |---|---|
-| Default model | Claude Sonnet 4.6 for classification, Opus 4.7 for `expand`/`review` |
+| Default model | MiniMax M2.7 for classification, Kimi K2.6 for `expand`/`review` |
 | Swap model | Change a string in env vars |
 | Auth | OpenRouter API key |
 | Markup | ~5% over direct provider — accepted for the simplicity |
