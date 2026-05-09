@@ -36,6 +36,12 @@ class LLMClient:
         if not api_key:
             raise ValueError("OPENROUTER_API_KEY is required")
         self._db_path = Path(db_path)
+        # Ensure the llm_calls table exists; trace writes assume it.
+        conn = get_connection(str(self._db_path))
+        try:
+            trace.ensure_schema(conn)
+        finally:
+            conn.close()
         self._client = AsyncOpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key,
