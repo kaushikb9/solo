@@ -52,7 +52,6 @@ class LLMClient:
     def __init__(
         self,
         api_key: str,
-        default_model: str,
         db_path: Path,
     ): ...
 
@@ -60,7 +59,7 @@ class LLMClient:
         self,
         messages: list[dict],
         *,
-        model: str | None = None,
+        model: str,                       # required — caller decides which model
         prompt_name: str | None = None,
     ) -> str:
         """Raw chat call. Returns assistant text. Writes one trace row."""
@@ -69,9 +68,9 @@ class LLMClient:
         self,
         prompt_name: str,
         schema: type[BaseModel],
-        vars: dict | None = None,
         *,
-        model: str | None = None,
+        model: str,                       # required
+        vars: dict | None = None,
     ) -> BaseModel:
         """Render prompt template, call API with response_format=schema, parse, return."""
 ```
@@ -79,6 +78,7 @@ class LLMClient:
 - Async-only. Matches `python-telegram-bot` (which is async-only as of v20).
 - Uses `openai.AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=...)`.
 - `structured()` uses the OpenAI SDK's pydantic helper: `client.beta.chat.completions.parse(..., response_format=schema)` — returns a parsed pydantic instance directly.
+- **No client-side default model.** Each caller is explicit about which model it wants. The classifier reads `SOLO_CLASSIFY_MODEL` from env and passes it; the expand path (V1) will read `SOLO_EXPAND_MODEL` and pass it. This keeps `LLMClient` purpose-agnostic and matches the existing per-purpose env-var setup in `.env.example`.
 - `prompt_name` on `chat()` is metadata-only — used to tag the trace row. `chat()` does not load any file. `structured()` requires `prompt_name` and uses it for both loading and tagging.
 - `vars` on `structured()` is passed through to `prompts.render` as `**(vars or {})`. `None` is equivalent to `{}`.
 - **Error semantics:** on API failure both methods write the trace row (`status='error'`) and then re-raise the underlying exception. They never return a sentinel value or swallow errors. Capture is the only path in solo that swallows errors; LLM calls fail loud so callers (classifier, ranker) can decide what to do.
@@ -166,10 +166,12 @@ No mid-call rows for V0. If a process crashes mid-call, the row is lost — acce
 ## Cost calculation
 
 ```python
-# in llm.py
+# in llm.py — values verified at openrouter.ai/models when wiring; update on drift.
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     # (input_per_1m_tokens_usd, output_per_1m_tokens_usd)
-    "anthropic/claude-haiku-4.5": (1.00, 5.00),  # verify at openrouter.ai/models when wiring
+    "minimax/minimax-m2.7":     (0.30, 1.20),
+    "moonshotai/kimi-k2.5":     (0.44, 2.00),
+    "moonshotai/kimi-k2.6":     (0.74, 3.49),
 }
 
 def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float | None:
@@ -190,8 +192,11 @@ def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float | N
 | Env var | Required | Notes |
 |---|---|---|
 | `OPENROUTER_API_KEY` | yes | Loaded via `os.environ`. `LLMClient.__init__` raises if `api_key=""`. |
-| `SOLO_DEFAULT_MODEL` | yes | e.g. `anthropic/claude-haiku-4.5`. Overridable per-call. |
+| `SOLO_CLASSIFY_MODEL` | yes (read by future classifier, not by `LLMClient` itself) | Default `minimax/minimax-m2.7` per `.env.example`. The slice 3 classifier will read this and pass it to `LLMClient.structured(model=...)`. |
+| `SOLO_EXPAND_MODEL` | not in V0 | Documented for forward-compat. Used by V1 `expand`. |
 | `SOLO_DB_PATH` | yes (already in use) | Same DB as `entries`. |
+
+`LLMClient` itself reads only `OPENROUTER_API_KEY` (passed in via `__init__`). Model env vars belong to the callers.
 
 `.env` continues to be loaded by `python-dotenv` at process start (already wired in slice 1).
 
@@ -207,7 +212,7 @@ Three test files:
 | `tests/test_prompts.py` | `load` reads correct file, `render` substitutes vars, missing var raises `KeyError`, missing file raises `FileNotFoundError`. Uses `tmp_path` and monkeypatches `PROMPTS_DIR`. |
 | `tests/test_trace.py` | `ensure_schema` is idempotent, `record_call` writes a row and returns its id, `cost_usd=NULL` is allowed, status check constraint rejects bad values. |
 
-**Live integration test**: `tests/test_llm_live.py`, decorated `@pytest.mark.skipif(not os.getenv("OPENROUTER_API_KEY"), ...)`. Hits `anthropic/claude-haiku-4.5` with a one-token prompt, asserts a real row lands with `status='ok'`, non-null `input_tokens`/`output_tokens`, and (since Haiku 4.5 is in the seeded `MODEL_PRICING`) `cost_usd > 0`. Skipped in CI by default; run manually when wiring.
+**Live integration test**: `tests/test_llm_live.py`, decorated `@pytest.mark.skipif(not os.getenv("OPENROUTER_API_KEY"), ...)`. Hits `minimax/minimax-m2.7` (cheapest seeded model) with a one-token prompt, asserts a real row lands with `status='ok'`, non-null `input_tokens`/`output_tokens`, and `cost_usd > 0`. Skipped in CI by default; run manually when wiring.
 
 **Total target:** ~20 new tests. Existing 14 stay green.
 
@@ -218,8 +223,8 @@ Three test files:
 - `src/solo/llm.py`, `src/solo/prompts.py`, `src/solo/trace.py`, empty `src/solo/prompts/` directory
 - `tests/test_llm.py`, `tests/test_prompts.py`, `tests/test_trace.py`, `tests/test_llm_live.py`
 - `llm_calls` table created on startup (call `trace.ensure_schema` from `__main__.py`)
-- `MODEL_PRICING` seeded with Haiku 4.5
-- `OPENROUTER_API_KEY` and `SOLO_DEFAULT_MODEL` documented in `README.md`
+- `MODEL_PRICING` seeded with the three OpenRouter models in `.env.example` (Minimax M2.7, Kimi K2.5, K2.6)
+- `OPENROUTER_API_KEY`, `SOLO_CLASSIFY_MODEL`, `SOLO_EXPAND_MODEL` documented in `README.md` (already present in `.env.example`)
 - `docs/concepts/llm-api-basics.md` written (per the documentation ritual in `AGENTS.md`)
 - `docs/concepts/observability-trace-table.md` written
 - `docs/decisions/0001-trace-table-write-timing.md` ADR (single post-call write decision)
@@ -230,8 +235,8 @@ Three test files:
 
 ## Open decisions deferred to implementation
 
-- Exact pricing values for Haiku 4.5 — verify at openrouter.ai/models when wiring.
-- Whether `MODEL_PRICING` lives in `llm.py` or its own `pricing.py` — defer until a second model is added; one model in one dict in one place is fine.
+- Verify the three Minimax/Kimi pricing rows against openrouter.ai/models at wiring time — `.env.example` comments are the current source of truth.
+- Whether `MODEL_PRICING` lives in `llm.py` or its own `pricing.py` — defer until pricing logic gets non-trivial (e.g., per-region rates, prompt caching discounts). Three rows in one dict is fine.
 
 ---
 
