@@ -236,3 +236,39 @@ class TestStructured:
         kwargs = mock_parse.call_args.kwargs
         assert kwargs["response_format"] is _ClassifyResult
         assert kwargs["model"] == "minimax/minimax-m2.7"
+
+
+class TestStructuredErrors:
+    @pytest.fixture
+    def fake_prompts_dir(self, tmp_path, monkeypatch):
+        prompts = tmp_path / "prompts"
+        prompts.mkdir()
+        (prompts / "classifier.md").write_text("Classify: {entry}")
+        monkeypatch.setattr("solo.prompts.PROMPTS_DIR", prompts)
+        return prompts
+
+    @pytest.mark.asyncio
+    async def test_structured_writes_error_row_and_reraises(
+        self, db_path, fake_prompts_dir, monkeypatch
+    ):
+        from solo.llm import LLMClient
+
+        client = LLMClient(api_key="test-key", db_path=db_path)
+        mock_parse = AsyncMock(side_effect=RuntimeError("schema mismatch"))
+        monkeypatch.setattr(client._client.beta.chat.completions, "parse", mock_parse)
+
+        with pytest.raises(RuntimeError, match="schema mismatch"):
+            await client.structured(
+                "classifier",
+                schema=_ClassifyResult,
+                model="minimax/minimax-m2.7",
+                vars={"entry": "x"},
+            )
+
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM llm_calls").fetchone()
+        conn.close()
+        assert row["status"] == "error"
+        assert row["error"] == "schema mismatch"
+        assert row["prompt_name"] == "classifier"
