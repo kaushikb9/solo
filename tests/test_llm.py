@@ -3,6 +3,7 @@ import sqlite3
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import BaseModel
 
 
 @pytest.fixture
@@ -140,3 +141,98 @@ class TestChatErrors:
 
         with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
             LLMClient(api_key="", db_path=db_path)
+
+
+class _ClassifyResult(BaseModel):
+    category: str
+    urgency: int
+
+
+def _mock_parse_response(parsed_obj, input_tokens: int = 8, output_tokens: int = 5):
+    """Build a mock shaped like client.beta.chat.completions.parse() response."""
+    response = MagicMock()
+    response.choices = [MagicMock()]
+    response.choices[0].message.parsed = parsed_obj
+    response.choices[0].message.content = parsed_obj.model_dump_json()
+    response.usage.prompt_tokens = input_tokens
+    response.usage.completion_tokens = output_tokens
+    return response
+
+
+class TestStructured:
+    @pytest.fixture
+    def fake_prompts_dir(self, tmp_path, monkeypatch):
+        prompts = tmp_path / "prompts"
+        prompts.mkdir()
+        (prompts / "classifier.md").write_text("Classify: {entry}")
+        monkeypatch.setattr("solo.prompts.PROMPTS_DIR", prompts)
+        return prompts
+
+    @pytest.mark.asyncio
+    async def test_structured_returns_parsed_pydantic(
+        self, db_path, fake_prompts_dir, monkeypatch
+    ):
+        from solo.llm import LLMClient
+
+        client = LLMClient(api_key="test-key", db_path=db_path)
+        expected = _ClassifyResult(category="learning", urgency=2)
+        mock_parse = AsyncMock(return_value=_mock_parse_response(expected))
+        monkeypatch.setattr(client._client.beta.chat.completions, "parse", mock_parse)
+
+        result = await client.structured(
+            "classifier",
+            schema=_ClassifyResult,
+            model="minimax/minimax-m2.7",
+            vars={"entry": "learn rust"},
+        )
+        assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_structured_writes_trace_row_with_prompt_name(
+        self, db_path, fake_prompts_dir, monkeypatch
+    ):
+        from solo.llm import LLMClient
+
+        client = LLMClient(api_key="test-key", db_path=db_path)
+        expected = _ClassifyResult(category="x", urgency=1)
+        mock_parse = AsyncMock(return_value=_mock_parse_response(expected))
+        monkeypatch.setattr(client._client.beta.chat.completions, "parse", mock_parse)
+
+        await client.structured(
+            "classifier",
+            schema=_ClassifyResult,
+            model="minimax/minimax-m2.7",
+            vars={"entry": "learn rust"},
+        )
+
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM llm_calls").fetchone()
+        conn.close()
+
+        assert row["prompt_name"] == "classifier"
+        assert row["status"] == "ok"
+        # prompt_text contains the rendered template wrapped in messages array
+        msgs = json.loads(row["prompt_text"])
+        assert any("learn rust" in m["content"] for m in msgs)
+
+    @pytest.mark.asyncio
+    async def test_structured_passes_response_format_to_sdk(
+        self, db_path, fake_prompts_dir, monkeypatch
+    ):
+        from solo.llm import LLMClient
+
+        client = LLMClient(api_key="test-key", db_path=db_path)
+        expected = _ClassifyResult(category="x", urgency=1)
+        mock_parse = AsyncMock(return_value=_mock_parse_response(expected))
+        monkeypatch.setattr(client._client.beta.chat.completions, "parse", mock_parse)
+
+        await client.structured(
+            "classifier",
+            schema=_ClassifyResult,
+            model="minimax/minimax-m2.7",
+            vars={"entry": "x"},
+        )
+        kwargs = mock_parse.call_args.kwargs
+        assert kwargs["response_format"] is _ClassifyResult
+        assert kwargs["model"] == "minimax/minimax-m2.7"

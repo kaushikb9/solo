@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 
 from solo import trace
 from solo.db import get_connection
@@ -98,6 +99,64 @@ class LLMClient:
             error=None,
         )
         return content
+
+    async def structured(
+        self,
+        prompt_name: str,
+        schema: type[BaseModel],
+        *,
+        model: str,
+        vars: dict | None = None,
+    ) -> BaseModel:
+        from solo import prompts
+
+        rendered = prompts.render(prompt_name, **(vars or {}))
+        messages = [{"role": "user", "content": rendered}]
+        ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        prompt_text = json.dumps(messages)
+        start = time.monotonic()
+
+        try:
+            response = await self._client.beta.chat.completions.parse(
+                model=model,
+                messages=messages,
+                response_format=schema,
+            )
+        except Exception as exc:
+            self._write_trace(
+                ts=ts,
+                model=model,
+                prompt_name=prompt_name,
+                prompt_text=prompt_text,
+                response_text=None,
+                input_tokens=None,
+                output_tokens=None,
+                cost_usd=None,
+                latency_ms=int((time.monotonic() - start) * 1000),
+                status="error",
+                error=str(exc),
+            )
+            raise
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        parsed = response.choices[0].message.parsed
+        in_tok = response.usage.prompt_tokens
+        out_tok = response.usage.completion_tokens
+
+        self._write_trace(
+            ts=ts,
+            model=model,
+            prompt_name=prompt_name,
+            prompt_text=prompt_text,
+            response_text=response.choices[0].message.content or "",
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            cost_usd=compute_cost(model, in_tok, out_tok),
+            latency_ms=latency_ms,
+            status="ok",
+            error=None,
+        )
+        return parsed
 
     def _write_trace(self, **row) -> None:
         conn = get_connection(str(self._db_path))
