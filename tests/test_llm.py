@@ -105,3 +105,38 @@ class TestComputeCost:
         from solo.llm import compute_cost
 
         assert compute_cost("minimax/minimax-m2.7", 0, 0) == 0.0
+
+
+class TestChatErrors:
+    @pytest.mark.asyncio
+    async def test_chat_writes_error_row_and_reraises(self, db_path, monkeypatch):
+        from solo.llm import LLMClient
+
+        client = LLMClient(api_key="test-key", db_path=db_path)
+        mock_create = AsyncMock(side_effect=RuntimeError("boom"))
+        monkeypatch.setattr(client._client.chat.completions, "create", mock_create)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await client.chat(
+                [{"role": "user", "content": "hi"}],
+                model="minimax/minimax-m2.7",
+            )
+
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM llm_calls").fetchone()
+        conn.close()
+
+        assert row["status"] == "error"
+        assert row["error"] == "boom"
+        assert row["response_text"] is None
+        assert row["cost_usd"] is None
+        assert row["input_tokens"] is None
+        assert row["latency_ms"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_init_rejects_empty_api_key(self, db_path):
+        from solo.llm import LLMClient
+
+        with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
+            LLMClient(api_key="", db_path=db_path)
