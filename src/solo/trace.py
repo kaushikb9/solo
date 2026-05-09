@@ -21,4 +21,3 @@ CREATE INDEX IF NOT EXISTS idx_llm_calls_ts ON llm_calls(ts);
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
-    conn.commit()
