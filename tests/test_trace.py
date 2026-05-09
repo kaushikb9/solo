@@ -61,3 +61,94 @@ class TestSchema:
             "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_llm_calls_ts'"
         )
         assert cursor.fetchone() is not None
+
+
+class TestRecordCall:
+    def test_returns_row_id(self, conn):
+        from solo.trace import ensure_schema, record_call
+
+        ensure_schema(conn)
+        row_id = record_call(
+            conn,
+            ts="2026-05-09T12:00:00Z",
+            model="minimax/minimax-m2.7",
+            prompt_name="classifier",
+            prompt_text='[{"role":"user","content":"hi"}]',
+            response_text="hello",
+            input_tokens=5,
+            output_tokens=2,
+            cost_usd=0.0001,
+            latency_ms=345,
+            status="ok",
+            error=None,
+        )
+        assert isinstance(row_id, int)
+        assert row_id >= 1
+
+    def test_inserted_row_is_readable(self, conn):
+        from solo.trace import ensure_schema, record_call
+
+        ensure_schema(conn)
+        row_id = record_call(
+            conn,
+            ts="2026-05-09T12:00:00Z",
+            model="minimax/minimax-m2.7",
+            prompt_name="classifier",
+            prompt_text='[{"role":"user","content":"hi"}]',
+            response_text="hello",
+            input_tokens=5,
+            output_tokens=2,
+            cost_usd=0.0001,
+            latency_ms=345,
+            status="ok",
+            error=None,
+        )
+        row = conn.execute("SELECT * FROM llm_calls WHERE id = ?", (row_id,)).fetchone()
+        assert row["model"] == "minimax/minimax-m2.7"
+        assert row["status"] == "ok"
+        assert row["response_text"] == "hello"
+        assert row["error"] is None
+
+    def test_error_row_has_null_response(self, conn):
+        from solo.trace import ensure_schema, record_call
+
+        ensure_schema(conn)
+        record_call(
+            conn,
+            ts="2026-05-09T12:00:00Z",
+            model="minimax/minimax-m2.7",
+            prompt_name=None,
+            prompt_text="[]",
+            response_text=None,
+            input_tokens=None,
+            output_tokens=None,
+            cost_usd=None,
+            latency_ms=120,
+            status="error",
+            error="connection refused",
+        )
+        row = conn.execute("SELECT * FROM llm_calls").fetchone()
+        assert row["status"] == "error"
+        assert row["response_text"] is None
+        assert row["cost_usd"] is None
+        assert row["error"] == "connection refused"
+
+    def test_invalid_status_rejected(self, conn):
+        from solo.trace import ensure_schema, record_call
+
+        ensure_schema(conn)
+        with pytest.raises(sqlite3.IntegrityError):
+            record_call(
+                conn,
+                ts="2026-05-09T12:00:00Z",
+                model="x",
+                prompt_name=None,
+                prompt_text="[]",
+                response_text=None,
+                input_tokens=None,
+                output_tokens=None,
+                cost_usd=None,
+                latency_ms=1,
+                status="weird",  # violates CHECK constraint
+                error=None,
+            )
