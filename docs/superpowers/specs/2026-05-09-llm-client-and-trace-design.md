@@ -108,11 +108,11 @@ def render(name: str, **vars: object) -> str:
 ## `trace.py` interface
 
 ```python
-def ensure_schema(db_path: Path) -> None:
+def ensure_schema(conn: sqlite3.Connection) -> None:
     """Create llm_calls table + index if not exists. Idempotent."""
 
 def record_call(
-    db_path: Path,
+    conn: sqlite3.Connection,
     *,
     ts: str,
     model: str,
@@ -129,9 +129,9 @@ def record_call(
     """Insert one row. Returns row id."""
 ```
 
-- Pure function — no class, no global state. Takes `db_path` each call (matches `db.py` style).
-- Caller (`LLMClient`) is responsible for assembling the row; `trace.py` just persists it.
-- Uses `sqlite3` stdlib, opens a fresh connection per write (consistent with `db.py`'s pattern).
+- Pure functions, no class, no global state. Take a `sqlite3.Connection` — matches `db.py`'s `insert_entry(conn, ...)` pattern.
+- `db.get_connection(db_path)` creates schema for `entries`; `trace.ensure_schema(conn)` is called separately at startup to add the `llm_calls` table to the same DB. (Alternative — fold `ensure_schema` into `get_connection` — rejected to keep `db.py` decoupled from the trace module.)
+- Caller (`LLMClient`) is responsible for assembling the row and managing the connection (opens one per call via `db.get_connection`); `trace.py` just persists it.
 
 ---
 
