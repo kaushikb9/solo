@@ -22,7 +22,7 @@ V0 — pre-implementation. Design is settled; code starts next.
 
 ## Stack
 
-Python 3.12 · `uv` · `python-telegram-bot` (long polling) · SQLite · OpenRouter · Pydantic. Deployed on Railway.
+Python 3.12 · `uv` · `python-telegram-bot` (long polling) · SQLite · OpenRouter · Pydantic. Currently deployed on local but can be hosted anywhere.
 
 ## Local dev
 
