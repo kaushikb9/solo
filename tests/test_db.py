@@ -44,8 +44,7 @@ class TestSchema:
 
         row_id = insert_entry(conn, "x", 1, 1, "{}")
         row = conn.execute(
-            "SELECT kind, summary, priority, classification_attempts "
-            "FROM entries WHERE id = ?",
+            "SELECT kind, summary, priority, classification_attempts FROM entries WHERE id = ?",
             (row_id,),
         ).fetchone()
         assert row[0] is None
@@ -86,9 +85,7 @@ class TestMigration:
         cols = {row[1] for row in conn.execute("PRAGMA table_info(entries)").fetchall()}
         assert {"kind", "summary", "priority", "classification_attempts"}.issubset(cols)
 
-        row = conn.execute(
-            "SELECT raw_text, classification_attempts FROM entries"
-        ).fetchone()
+        row = conn.execute("SELECT raw_text, classification_attempts FROM entries").fetchone()
         assert row[0] == "legacy thought"
         assert row[1] == 0
         conn.close()
@@ -196,9 +193,7 @@ class TestFetchUnclassified:
 
         a = insert_entry(conn, "a", 1, 1, "{}")
         b = insert_entry(conn, "b", 1, 2, "{}")
-        conn.execute(
-            "UPDATE entries SET classification_attempts=3 WHERE id=?", (a,)
-        )
+        conn.execute("UPDATE entries SET classification_attempts=3 WHERE id=?", (a,))
         conn.commit()
 
         rows = fetch_unclassified(conn, max_attempts=3)
@@ -247,9 +242,7 @@ class TestApplyClassification:
         long_summary = "a" * 200
         apply_classification(conn, rid, "note", long_summary, "low")
 
-        stored = conn.execute(
-            "SELECT summary FROM entries WHERE id=?", (rid,)
-        ).fetchone()[0]
+        stored = conn.execute("SELECT summary FROM entries WHERE id=?", (rid,)).fetchone()[0]
         assert len(stored) == 120
 
     def test_noop_for_already_classified_row(self, conn):
@@ -283,7 +276,5 @@ class TestRecordClassificationFailure:
 
         rid = insert_entry(conn, "x", 1, 1, "{}")
         record_classification_failure(conn, rid)
-        classified = conn.execute(
-            "SELECT classified FROM entries WHERE id=?", (rid,)
-        ).fetchone()[0]
+        classified = conn.execute("SELECT classified FROM entries WHERE id=?", (rid,)).fetchone()[0]
         assert classified == 0

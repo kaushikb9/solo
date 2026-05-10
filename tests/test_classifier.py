@@ -94,9 +94,7 @@ class TestClassifyPendingHappyPath:
             r["id"]: r
             for r in (
                 dict(x)
-                for x in conn.execute(
-                    "SELECT * FROM entries WHERE id IN (?,?,?)", ids
-                ).fetchall()
+                for x in conn.execute("SELECT * FROM entries WHERE id IN (?,?,?)", ids).fetchall()
             )
         }
         assert rows[ids[0]]["kind"] == "idea"
@@ -121,14 +119,9 @@ class TestClassifyPendingHappyPath:
             insert_entry(conn, f"t{i}", 1, i, "{}")
 
         llm = FakeLLM(
-            results=[
-                ClassifyResult(kind="note", summary=f"t{i}", priority="low")
-                for i in range(3)
-            ]
+            results=[ClassifyResult(kind="note", summary=f"t{i}", priority="low") for i in range(3)]
         )
-        n = await classify_pending(
-            conn, llm, model="minimax/minimax-m2.7", limit=3
-        )
+        n = await classify_pending(conn, llm, model="minimax/minimax-m2.7", limit=3)
         assert n == 3
         assert len(llm.calls) == 3
 
@@ -183,9 +176,7 @@ class TestClassifyPendingFailures:
 
         rows = {
             r["id"]: dict(r)
-            for r in conn.execute(
-                "SELECT * FROM entries WHERE id IN (?,?,?)", (a, b, c)
-            ).fetchall()
+            for r in conn.execute("SELECT * FROM entries WHERE id IN (?,?,?)", (a, b, c)).fetchall()
         }
         assert rows[a]["classified"] == 1
         assert rows[b]["classified"] == 0
@@ -198,9 +189,7 @@ class TestClassifyPendingFailures:
         from solo.db import insert_entry
 
         rid = insert_entry(conn, "stuck", 1, 1, "{}")
-        conn.execute(
-            "UPDATE entries SET classification_attempts = 3 WHERE id = ?", (rid,)
-        )
+        conn.execute("UPDATE entries SET classification_attempts = 3 WHERE id = ?", (rid,))
         conn.commit()
 
         llm = FakeLLM()

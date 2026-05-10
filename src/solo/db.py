@@ -25,8 +25,7 @@ def _migrate_entries(conn: sqlite3.Connection) -> None:
         ("priority", "ALTER TABLE entries ADD COLUMN priority TEXT"),
         (
             "classification_attempts",
-            "ALTER TABLE entries ADD COLUMN classification_attempts "
-            "INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE entries ADD COLUMN classification_attempts INTEGER NOT NULL DEFAULT 0",
         ),
     )
     for col, ddl in additions:
@@ -107,12 +106,9 @@ def apply_classification(
     conn.commit()
 
 
-def record_classification_failure(
-    conn: sqlite3.Connection, entry_id: int
-) -> None:
+def record_classification_failure(conn: sqlite3.Connection, entry_id: int) -> None:
     conn.execute(
-        "UPDATE entries SET classification_attempts = classification_attempts + 1 "
-        "WHERE id = ?",
+        "UPDATE entries SET classification_attempts = classification_attempts + 1 WHERE id = ?",
         (entry_id,),
     )
     conn.commit()

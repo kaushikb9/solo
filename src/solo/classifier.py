@@ -49,13 +49,9 @@ async def classify_pending(
                 vars={"entry_text": row["raw_text"]},
             )
         except Exception as exc:
-            logger.warning(
-                "classify failed for entry %s: %s", row["id"], exc
-            )
+            logger.warning("classify failed for entry %s: %s", row["id"], exc)
             db.record_classification_failure(conn, row["id"])
             continue
-        db.apply_classification(
-            conn, row["id"], result.kind, result.summary, result.priority
-        )
+        db.apply_classification(conn, row["id"], result.kind, result.summary, result.priority)
         success += 1
     return success
