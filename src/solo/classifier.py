@@ -9,7 +9,7 @@ import logging
 import sqlite3
 from typing import Literal, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from solo import db
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class ClassifyResult(BaseModel):
     kind: Literal["idea", "soft_task", "hard_task", "note"]
-    summary: str
+    summary: str = Field(min_length=1, max_length=200)
     priority: Literal["low", "medium", "high"]
 
 
@@ -52,6 +52,9 @@ async def classify_pending(
             logger.warning("classify failed for entry %s: %s", row["id"], exc)
             db.record_classification_failure(conn, row["id"])
             continue
-        db.apply_classification(conn, row["id"], result.kind, result.summary, result.priority)
-        success += 1
+        wrote = db.apply_classification(
+            conn, row["id"], result.kind, result.summary, result.priority
+        )
+        if wrote:
+            success += 1
     return success

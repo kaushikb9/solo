@@ -38,6 +38,14 @@ class TestClassifyResultSchema:
         with pytest.raises(ValidationError):
             ClassifyResult(kind="idea", summary="x", priority="urgent")
 
+    def test_empty_summary_rejected(self):
+        from pydantic import ValidationError
+
+        from solo.classifier import ClassifyResult
+
+        with pytest.raises(ValidationError):
+            ClassifyResult(kind="idea", summary="", priority="low")
+
 
 class FakeLLM:
     """Duck-typed stand-in for LLMClient. Returns scripted results or raises."""

@@ -227,13 +227,22 @@ class TestApplyClassification:
         from solo.db import apply_classification, insert_entry
 
         rid = insert_entry(conn, "x", 1, 1, "{}")
-        apply_classification(conn, rid, "idea", "explore X", "high")
+        wrote = apply_classification(conn, rid, "idea", "explore X", "high")
+        assert wrote is True
 
         row = conn.execute("SELECT * FROM entries WHERE id=?", (rid,)).fetchone()
         assert row["kind"] == "idea"
         assert row["summary"] == "explore X"
         assert row["priority"] == "high"
         assert row["classified"] == 1
+
+    def test_returns_false_when_already_classified(self, conn):
+        from solo.db import apply_classification, insert_entry
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        apply_classification(conn, rid, "idea", "first", "high")
+        wrote = apply_classification(conn, rid, "note", "second", "low")
+        assert wrote is False
 
     def test_truncates_long_summary(self, conn):
         from solo.db import apply_classification, insert_entry

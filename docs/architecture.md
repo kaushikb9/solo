@@ -137,7 +137,7 @@ solo/
     commands.py         # /top3, /log handlers
     trace.py            # llm_calls trace table writes
     prompts/
-      classify.md
+      classifier.md
       score.md
     agents/             # V1
       expand.py

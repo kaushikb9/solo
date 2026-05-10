@@ -93,9 +93,10 @@ def apply_classification(
     kind: str,
     summary: str,
     priority: str,
-) -> None:
+) -> bool:
+    """Returns True iff a row was actually written (i.e. row was unclassified)."""
     truncated = summary[:120]
-    conn.execute(
+    cursor = conn.execute(
         """
         UPDATE entries
         SET kind = ?, summary = ?, priority = ?, classified = 1
@@ -104,6 +105,7 @@ def apply_classification(
         (kind, truncated, priority, entry_id),
     )
     conn.commit()
+    return cursor.rowcount > 0
 
 
 def record_classification_failure(conn: sqlite3.Connection, entry_id: int) -> None:
