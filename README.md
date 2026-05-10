@@ -34,6 +34,21 @@ uv run pytest                        # tests
 uv run python scripts/eval.py        # classifier eval
 ```
 
+## Environment
+
+Copy `.env.example` to `.env` and fill in:
+
+| Var | Required | Purpose |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | yes | From @BotFather. |
+| `SOLO_ALLOWED_CHATS` | yes | Comma-separated Telegram chat IDs allowed to talk to the bot. Get yours from @userinfobot. |
+| `OPENROUTER_API_KEY` | yes (slice 2 onward) | From [openrouter.ai/keys](https://openrouter.ai/keys). One key, many models. |
+| `SOLO_CLASSIFY_MODEL` | yes (slice 3 onward) | Model used by the lazy classifier. Default `minimax/minimax-m2.7`. |
+| `SOLO_EXPAND_MODEL` | not in V0 | Model for V1 `expand`/`review`. Default `moonshotai/kimi-k2.6`. |
+| `SOLO_DB_PATH` | yes | Path to the SQLite file. Default `./data/solo.db`. |
+
+`OPENROUTER_API_KEY` is the only model-API credential — solo routes everything through OpenRouter.
+
 ## Working with agents
 
 This repo is tool-agnostic. The canonical guidance is [`AGENTS.md`](AGENTS.md), read by any agent on any tool.

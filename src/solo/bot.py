@@ -7,6 +7,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
 from solo.db import get_connection, insert_entry
+from solo.trace import ensure_schema
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def main() -> None:
     allowed_chats = {int(c.strip()) for c in raw_chats.split(",") if c.strip()}
 
     conn = get_connection(db_path)
+    ensure_schema(conn)
 
     app = ApplicationBuilder().token(token).build()
 
