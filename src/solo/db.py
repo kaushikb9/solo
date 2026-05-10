@@ -69,3 +69,50 @@ def get_recent_entries(conn: sqlite3.Connection, limit: int = 20) -> list[dict]:
         (limit,),
     )
     return [dict(row) for row in cursor.fetchall()]
+
+
+def fetch_unclassified(
+    conn: sqlite3.Connection,
+    limit: int = 50,
+    max_attempts: int = 3,
+) -> list[dict]:
+    cursor = conn.execute(
+        """
+        SELECT * FROM entries
+        WHERE classified = 0 AND classification_attempts < ?
+        ORDER BY created_at ASC, id ASC
+        LIMIT ?
+        """,
+        (max_attempts, limit),
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def apply_classification(
+    conn: sqlite3.Connection,
+    entry_id: int,
+    kind: str,
+    summary: str,
+    priority: str,
+) -> None:
+    truncated = summary[:120]
+    conn.execute(
+        """
+        UPDATE entries
+        SET kind = ?, summary = ?, priority = ?, classified = 1
+        WHERE id = ? AND classified = 0
+        """,
+        (kind, truncated, priority, entry_id),
+    )
+    conn.commit()
+
+
+def record_classification_failure(
+    conn: sqlite3.Connection, entry_id: int
+) -> None:
+    conn.execute(
+        "UPDATE entries SET classification_attempts = classification_attempts + 1 "
+        "WHERE id = ?",
+        (entry_id,),
+    )
+    conn.commit()

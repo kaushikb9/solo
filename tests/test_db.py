@@ -176,3 +176,114 @@ class TestGetRecentEntries:
 
         entries = get_recent_entries(conn, limit=5)
         assert len(entries) == 5
+
+
+class TestFetchUnclassified:
+    def test_returns_only_unclassified_rows(self, conn):
+        from solo.db import fetch_unclassified, insert_entry
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        conn.execute("UPDATE entries SET classified=1 WHERE id=?", (a,))
+        conn.commit()
+
+        rows = fetch_unclassified(conn)
+        ids = [r["id"] for r in rows]
+        assert ids == [b]
+
+    def test_skips_rows_at_max_attempts(self, conn):
+        from solo.db import fetch_unclassified, insert_entry
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        conn.execute(
+            "UPDATE entries SET classification_attempts=3 WHERE id=?", (a,)
+        )
+        conn.commit()
+
+        rows = fetch_unclassified(conn, max_attempts=3)
+        assert [r["id"] for r in rows] == [b]
+
+    def test_orders_by_created_at_ascending(self, conn):
+        from solo.db import fetch_unclassified, insert_entry
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        conn.execute(
+            "UPDATE entries SET created_at='2030-01-01T00:00:00.000Z' WHERE id=?",
+            (b,),
+        )
+        conn.commit()
+
+        rows = fetch_unclassified(conn)
+        assert [r["id"] for r in rows] == [a, b]
+
+    def test_limit_caps_results(self, conn):
+        from solo.db import fetch_unclassified, insert_entry
+
+        for i in range(5):
+            insert_entry(conn, f"t{i}", 1, i, "{}")
+        rows = fetch_unclassified(conn, limit=2)
+        assert len(rows) == 2
+
+
+class TestApplyClassification:
+    def test_writes_fields_and_flips_classified(self, conn):
+        from solo.db import apply_classification, insert_entry
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        apply_classification(conn, rid, "idea", "explore X", "high")
+
+        row = conn.execute("SELECT * FROM entries WHERE id=?", (rid,)).fetchone()
+        assert row["kind"] == "idea"
+        assert row["summary"] == "explore X"
+        assert row["priority"] == "high"
+        assert row["classified"] == 1
+
+    def test_truncates_long_summary(self, conn):
+        from solo.db import apply_classification, insert_entry
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        long_summary = "a" * 200
+        apply_classification(conn, rid, "note", long_summary, "low")
+
+        stored = conn.execute(
+            "SELECT summary FROM entries WHERE id=?", (rid,)
+        ).fetchone()[0]
+        assert len(stored) == 120
+
+    def test_noop_for_already_classified_row(self, conn):
+        from solo.db import apply_classification, insert_entry
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        apply_classification(conn, rid, "idea", "first", "high")
+        apply_classification(conn, rid, "note", "second", "low")
+
+        row = conn.execute("SELECT * FROM entries WHERE id=?", (rid,)).fetchone()
+        assert row["kind"] == "idea"
+        assert row["summary"] == "first"
+        assert row["priority"] == "high"
+
+
+class TestRecordClassificationFailure:
+    def test_increments_attempts(self, conn):
+        from solo.db import insert_entry, record_classification_failure
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        record_classification_failure(conn, rid)
+        record_classification_failure(conn, rid)
+
+        attempts = conn.execute(
+            "SELECT classification_attempts FROM entries WHERE id=?", (rid,)
+        ).fetchone()[0]
+        assert attempts == 2
+
+    def test_does_not_set_classified(self, conn):
+        from solo.db import insert_entry, record_classification_failure
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        record_classification_failure(conn, rid)
+        classified = conn.execute(
+            "SELECT classified FROM entries WHERE id=?", (rid,)
+        ).fetchone()[0]
+        assert classified == 0
