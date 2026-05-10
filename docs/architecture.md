@@ -132,7 +132,7 @@ solo/
     bot.py              # Telegram long-polling loop, command dispatch
     db.py               # SQLite/libSQL schema + queries
     llm.py              # LLMClient (OpenRouter)
-    classify.py         # Classification + summarization (single-shot)
+    classifier.py       # Classification + summarization (single-shot)
     rank.py             # top3 ranking logic
     commands.py         # /top3, /log handlers
     trace.py            # llm_calls trace table writes
