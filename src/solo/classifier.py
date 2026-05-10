@@ -41,12 +41,19 @@ async def classify_pending(
     rows = db.fetch_unclassified(conn, limit=limit, max_attempts=max_attempts)
     success = 0
     for row in rows:
-        result = await llm.structured(
-            "classifier",
-            ClassifyResult,
-            model=model,
-            vars={"entry_text": row["raw_text"]},
-        )
+        try:
+            result = await llm.structured(
+                "classifier",
+                ClassifyResult,
+                model=model,
+                vars={"entry_text": row["raw_text"]},
+            )
+        except Exception as exc:
+            logger.warning(
+                "classify failed for entry %s: %s", row["id"], exc
+            )
+            db.record_classification_failure(conn, row["id"])
+            continue
         db.apply_classification(
             conn, row["id"], result.kind, result.summary, result.priority
         )

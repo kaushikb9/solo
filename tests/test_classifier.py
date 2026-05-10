@@ -131,3 +131,79 @@ class TestClassifyPendingHappyPath:
         )
         assert n == 3
         assert len(llm.calls) == 3
+
+
+class TestClassifyPendingFailures:
+    @pytest.mark.asyncio
+    async def test_single_failure_increments_attempts(self, conn):
+        from solo.classifier import classify_pending
+        from solo.db import insert_entry
+
+        rid = insert_entry(conn, "broken", 1, 1, "{}")
+        llm = FakeLLM(errors=[RuntimeError("boom")])
+
+        n = await classify_pending(conn, llm, model="minimax/minimax-m2.7")
+        assert n == 0
+
+        row = conn.execute("SELECT * FROM entries WHERE id=?", (rid,)).fetchone()
+        assert row["classification_attempts"] == 1
+        assert row["classified"] == 0
+
+    @pytest.mark.asyncio
+    async def test_classify_pending_never_raises(self, conn):
+        from solo.classifier import classify_pending
+        from solo.db import insert_entry
+
+        insert_entry(conn, "broken", 1, 1, "{}")
+        llm = FakeLLM(errors=[RuntimeError("boom")])
+
+        n = await classify_pending(conn, llm, model="minimax/minimax-m2.7")
+        assert n == 0
+
+    @pytest.mark.asyncio
+    async def test_mixed_batch(self, conn):
+        from solo.classifier import ClassifyResult, classify_pending
+        from solo.db import insert_entry
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        c = insert_entry(conn, "c", 1, 3, "{}")
+
+        llm = FakeLLM(
+            results=[
+                ClassifyResult(kind="idea", summary="a", priority="low"),
+                None,
+                ClassifyResult(kind="note", summary="c", priority="low"),
+            ],
+            errors=[None, RuntimeError("boom"), None],
+        )
+
+        n = await classify_pending(conn, llm, model="minimax/minimax-m2.7")
+        assert n == 2
+
+        rows = {
+            r["id"]: dict(r)
+            for r in conn.execute(
+                "SELECT * FROM entries WHERE id IN (?,?,?)", (a, b, c)
+            ).fetchall()
+        }
+        assert rows[a]["classified"] == 1
+        assert rows[b]["classified"] == 0
+        assert rows[b]["classification_attempts"] == 1
+        assert rows[c]["classified"] == 1
+
+    @pytest.mark.asyncio
+    async def test_row_at_max_attempts_is_skipped(self, conn):
+        from solo.classifier import classify_pending
+        from solo.db import insert_entry
+
+        rid = insert_entry(conn, "stuck", 1, 1, "{}")
+        conn.execute(
+            "UPDATE entries SET classification_attempts = 3 WHERE id = ?", (rid,)
+        )
+        conn.commit()
+
+        llm = FakeLLM()
+        n = await classify_pending(conn, llm, model="minimax/minimax-m2.7")
+        assert n == 0
+        assert llm.calls == []
