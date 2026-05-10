@@ -6,39 +6,42 @@ Living doc. Update as part of any non-trivial change so the next agent (possibly
 
 ## Last updated
 
-**2026-05-05** — by Claude Code (Opus 4.6).
+**2026-05-10** — by Claude Code (Opus 4.7).
 
 ## Current state
 
-**V0 slice 1 (Telegram capture → SQLite) implemented.** Bot captures raw text messages and stores them in SQLite.
+**V0 slice 2 (LLMClient + `llm_calls` trace table) implemented.** Every LLM call in solo now goes through `solo.llm.LLMClient` and writes one row to `llm_calls`.
 
-Done:
-- `src/solo/db.py` — SQLite schema (`entries` table), `get_connection`, `insert_entry`, `get_recent_entries`
-- `src/solo/bot.py` — Telegram long-polling bot, `handle_message` with chat allowlist and defensive error handling
-- `tests/test_db.py` — 8 tests (schema, insert, query)
-- `tests/test_bot.py` — 6 tests (capture, metadata, allowlist, empty message, open allowlist, failure resilience)
-- 14 tests passing, ruff clean
-- `data/` directory set up with `.gitkeep`, gitignored for DB files
+Done in slice 2:
+- `src/solo/trace.py` — `ensure_schema`, `record_call`
+- `src/solo/prompts.py` — `load`, `render`
+- `src/solo/llm.py` — `MODEL_PRICING`, `compute_cost`, `LLMClient` (async, `chat` + `structured`)
+- `src/solo/prompts/` — directory created (empty; first prompt lands in slice 3)
+- `src/solo/bot.py` — calls `trace.ensure_schema` on startup
+- `tests/test_trace.py`, `tests/test_prompts.py`, `tests/test_llm.py`, `tests/test_llm_live.py` — 25 new tests, all green
+- `docs/concepts/llm-api-basics.md` and `docs/concepts/observability-trace-table.md` — first concept primers
+- `docs/decisions/0001-trace-write-timing.md` and `0002-llm-module-split.md` — first ADRs
+- `README.md` — Environment section added
 
 Pending manual verification:
-- Smoke test with a real Telegram bot token (see Task 7 in `docs/superpowers/plans/2026-05-05-telegram-capture.md`)
+- Live integration test against OpenRouter — run `OPENROUTER_API_KEY=… uv run pytest tests/test_llm_live.py -v` once.
 
 ## What's next
 
 Per `AGENTS.md` V0 scope, in order:
 
-1. ~~Telegram capture → SQLite~~ — done
-2. **`LLMClient` (OpenRouter) + `llm_calls` trace table.** Foundation for every subsequent LLM call.
-3. **Lazy classifier.** When `/top3` is invoked, classify any unclassified rows first.
+1. ~~Telegram capture → SQLite~~ — done (slice 1)
+2. ~~`LLMClient` (OpenRouter) + `llm_calls` trace table~~ — done (slice 2)
+3. **Lazy classifier.** Write `src/solo/prompts/classifier.md`, write `src/solo/classifier.py` that calls `LLMClient.structured("classifier", ClassifyResult, model=os.environ["SOLO_CLASSIFY_MODEL"], vars=...)`. Triggered when `/top3` is invoked: classify any unclassified rows first.
 4. **`/top3` and `/log` commands.**
 5. **Classifier eval harness** (`evals/classify.jsonl` + `scripts/eval.py`).
 
 ## Open decisions deferred to implementation
 
-- Exact OpenRouter model IDs (verify at https://openrouter.ai/models when wiring `LLMClient`)
-- Whether to keep raw Telegram message JSON alongside `raw_text` (probably yes — cheap, future-proof)
-- Schema specifics: column types, indexes, FTS for `/log` search
-- Apple Reminders bridge approach (V2 — out of V0 scope)
+- Verify `MODEL_PRICING` rates against openrouter.ai/models when wiring real classifier calls.
+- Whether OpenRouter's `response_format=BaseModel` works reliably across the Minimax/Kimi backends (flagged risk in slice-2 spec). Live integration test will tell us.
+- Schema specifics for the classifier: column types, indexes, FTS for `/log` search.
+- Apple Reminders bridge approach (V2 — out of V0 scope).
 
 ## Blockers
 
