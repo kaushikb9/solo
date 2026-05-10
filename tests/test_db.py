@@ -33,7 +33,72 @@ class TestSchema:
             "telegram_message_json",
             "created_at",
             "classified",
+            "kind",
+            "summary",
+            "priority",
+            "classification_attempts",
         }
+
+    def test_new_classification_columns_have_correct_defaults(self, conn):
+        from solo.db import insert_entry
+
+        row_id = insert_entry(conn, "x", 1, 1, "{}")
+        row = conn.execute(
+            "SELECT kind, summary, priority, classification_attempts "
+            "FROM entries WHERE id = ?",
+            (row_id,),
+        ).fetchone()
+        assert row[0] is None
+        assert row[1] is None
+        assert row[2] is None
+        assert row[3] == 0
+
+
+class TestMigration:
+    def test_migration_adds_columns_to_old_db(self, tmp_path):
+        import sqlite3
+
+        from solo.db import get_connection
+
+        path = tmp_path / "old.db"
+        old = sqlite3.connect(str(path))
+        old.executescript(
+            """
+            CREATE TABLE entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                raw_text TEXT NOT NULL,
+                telegram_chat_id INTEGER NOT NULL,
+                telegram_message_id INTEGER NOT NULL,
+                telegram_message_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+                classified INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT INTO entries (
+                raw_text, telegram_chat_id,
+                telegram_message_id, telegram_message_json
+            ) VALUES ('legacy thought', 1, 1, '{}');
+            """
+        )
+        old.commit()
+        old.close()
+
+        conn = get_connection(str(path))
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(entries)").fetchall()}
+        assert {"kind", "summary", "priority", "classification_attempts"}.issubset(cols)
+
+        row = conn.execute(
+            "SELECT raw_text, classification_attempts FROM entries"
+        ).fetchone()
+        assert row[0] == "legacy thought"
+        assert row[1] == 0
+        conn.close()
+
+    def test_migration_is_idempotent(self, tmp_path):
+        from solo.db import get_connection
+
+        path = tmp_path / "x.db"
+        get_connection(str(path)).close()
+        get_connection(str(path)).close()
 
 
 class TestInsertEntry:

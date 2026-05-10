@@ -8,9 +8,31 @@ CREATE TABLE IF NOT EXISTS entries (
     telegram_message_id INTEGER NOT NULL,
     telegram_message_json TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    classified INTEGER NOT NULL DEFAULT 0
+    classified INTEGER NOT NULL DEFAULT 0,
+    kind TEXT,
+    summary TEXT,
+    priority TEXT,
+    classification_attempts INTEGER NOT NULL DEFAULT 0
 );
 """
+
+
+def _migrate_entries(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(entries)").fetchall()}
+    additions = (
+        ("kind", "ALTER TABLE entries ADD COLUMN kind TEXT"),
+        ("summary", "ALTER TABLE entries ADD COLUMN summary TEXT"),
+        ("priority", "ALTER TABLE entries ADD COLUMN priority TEXT"),
+        (
+            "classification_attempts",
+            "ALTER TABLE entries ADD COLUMN classification_attempts "
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+    )
+    for col, ddl in additions:
+        if col not in cols:
+            conn.execute(ddl)
+    conn.commit()
 
 
 def get_connection(db_path: str) -> sqlite3.Connection:
@@ -19,6 +41,7 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON")
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
+    _migrate_entries(conn)
     return conn
 
 
