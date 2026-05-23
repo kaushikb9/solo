@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>solo — end-to-end walkthrough</title>
+  <style>
+    :root {
+      --bg:        #0f1115;
+      --panel:     #161922;
+      --panel-2:   #1c2030;
+      --border:    #262b3a;
+      --text:      #e8ecf3;
+      --muted:     #8a93a6;
+      --accent:    #7aa2ff;
+      --accent-2:  #b48cff;
+      --green:     #6dd58c;
+      --amber:     #ffb86b;
+      --red:       #ff7a8a;
+      --mono:      ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans:      -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg); color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px; line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre, .mono { font-family: var(--mono); font-size: 13px; }
+    code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); }
+    pre {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 0 0 12px 0;
+    }
+    pre code { background: transparent; border: none; padding: 0; }
+
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    nav.side {
+      position: sticky; top: 0; align-self: start;
+      height: 100vh; padding: 28px 18px; border-right: 1px solid var(--border);
+      background: var(--panel); overflow-y: auto;
+    }
+    nav.side .logo {
+      font-weight: 700; letter-spacing: 0.4px; font-size: 18px; margin-bottom: 4px;
+    }
+    nav.side .sub { color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+    nav.side ol { list-style: none; padding: 0; margin: 0; }
+    nav.side ol li { margin: 4px 0; }
+    nav.side ol li a {
+      display: block; padding: 6px 10px; border-radius: 6px; color: var(--text);
+      font-size: 13px;
+    }
+    nav.side ol li a:hover { background: var(--panel-2); text-decoration: none; }
+    nav.side .legend { margin-top: 22px; font-size: 12px; color: var(--muted); }
+    nav.side .legend .dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+
+    main { padding: 40px 56px 80px 56px; max-width: 980px; }
+    h1 { font-size: 32px; margin: 0 0 6px 0; letter-spacing: -0.3px; }
+    h2 {
+      font-size: 22px; margin: 40px 0 12px 0;
+      border-bottom: 1px solid var(--border); padding-bottom: 6px;
+    }
+    h3 { font-size: 17px; margin: 22px 0 8px 0; color: var(--text); }
+    p { margin: 0 0 12px 0; }
+    .lede { color: var(--muted); font-size: 16px; margin-bottom: 24px; }
+
+    .meta {
+      display: flex; gap: 18px; flex-wrap: wrap; align-items: center;
+      color: var(--muted); font-size: 12.5px; margin-bottom: 18px;
+    }
+    .pill {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--panel-2);
+      color: var(--text); font-size: 11.5px; letter-spacing: 0.3px;
+    }
+    .pill.green  { color: var(--green);  border-color: rgba(109,213,140,0.4); }
+    .pill.amber  { color: var(--amber);  border-color: rgba(255,184,107,0.4); }
+    .pill.muted  { color: var(--muted); }
+
+    /* Flow diagram */
+    .flow {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px; margin: 16px 0 22px 0; overflow-x: auto;
+    }
+    .flow .row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+    .flow .row + .row { margin-top: 18px; }
+    .node {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 14px; min-width: 110px; text-align: center;
+      font-size: 13px;
+    }
+    .node .t { font-weight: 600; }
+    .node .s { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+    .node.slice1 { border-color: rgba(122,162,255,0.45); }
+    .node.slice2 { border-color: rgba(180,140,255,0.45); }
+    .node.slice3 { border-color: rgba(109,213,140,0.45); }
+    .node.slice4 { border-color: rgba(255,184,107,0.45); border-style: dashed; opacity: 0.85; }
+    .arrow {
+      color: var(--muted); font-family: var(--mono); font-size: 18px; user-select: none;
+    }
+    .arrow.down { display: block; text-align: center; padding-left: 50px; }
+
+    /* Slice cards */
+    .slice {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 26px; margin: 16px 0 22px 0;
+    }
+    .slice.s1 { border-left: 4px solid var(--accent); }
+    .slice.s2 { border-left: 4px solid var(--accent-2); }
+    .slice.s3 { border-left: 4px solid var(--green); }
+    .slice.s4 { border-left: 4px solid var(--amber); border-style: dashed; }
+    .slice h3 { margin-top: 0; display: flex; align-items: center; gap: 10px; }
+    .slice .why { color: var(--muted); margin-bottom: 14px; font-style: italic; }
+    .files {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px;
+      font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+      margin: 8px 0 6px 0;
+    }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+      nav.side { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      main { padding: 28px 22px 60px; }
+      .files { grid-template-columns: 1fr; }
+    }
+
+    /* Schema tables */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0 18px 0; }
+    th, td {
+      text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+    td code { font-size: 12.5px; }
+
+    /* Two-column layout for concept/decision lists */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
+    @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .card .k { color: var(--muted); font-size: 12px; margin-bottom: 4px; letter-spacing: 0.3px; }
+    .card .v { font-weight: 600; margin-bottom: 4px; }
+    .card .v a { color: var(--text); }
+    .card .d { color: var(--muted); font-size: 13px; }
+
+    .callout {
+      background: rgba(122,162,255,0.06); border: 1px solid rgba(122,162,255,0.3);
+      border-radius: 10px; padding: 12px 16px; margin: 14px 0;
+      font-size: 14px;
+    }
+    .callout strong { color: var(--accent); }
+
+    .footnote { color: var(--muted); font-size: 12px; margin-top: 50px; border-top: 1px solid var(--border); padding-top: 14px; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="side">
+  <div class="logo">solo</div>
+  <div class="sub">end-to-end walkthrough</div>
+  <ol>
+    <li><a href="#overview">1. What solo is</a></li>
+    <li><a href="#flow">2. End-to-end flow</a></li>
+    <li><a href="#schema">3. Database schema</a></li>
+    <li><a href="#slice1">4. Slice 1 — Capture</a></li>
+    <li><a href="#slice2">5. Slice 2 — LLMClient + trace</a></li>
+    <li><a href="#slice3">6. Slice 3 — Lazy classifier</a></li>
+    <li><a href="#slice4">7. Slice 4 — /top3 + /log <span class="pill amber">next</span></a></li>
+    <li><a href="#abstractions">8. Key abstractions</a></li>
+    <li><a href="#concepts">9. Concept primers</a></li>
+    <li><a href="#decisions">10. Architecture decisions</a></li>
+    <li><a href="#status">11. Status &amp; what&rsquo;s next</a></li>
+  </ol>
+  <div class="legend">
+    <div><span class="dot" style="background: var(--accent)"></span> slice 1 — done</div>
+    <div><span class="dot" style="background: var(--accent-2)"></span> slice 2 — done</div>
+    <div><span class="dot" style="background: var(--green)"></span> slice 3 — done</div>
+    <div><span class="dot" style="background: var(--amber)"></span> slice 4 — next</div>
+  </div>
+</nav>
+
+<main>
+
+<h1>solo &mdash; end-to-end walkthrough</h1>
+<p class="lede">A personal thinking companion. Telegram captures raw thoughts &rarr; SQLite stores them &rarr; an LLM classifier runs lazily when <code>/top3</code> is invoked &rarr; ranked priorities come back. 90% deterministic spine; the small agent surface only shows up in V1.</p>
+<div class="meta">
+  <span class="pill">V0 scope</span>
+  <span class="pill green">slices 1&ndash;3 shipped</span>
+  <span class="pill amber">slice 4 in flight</span>
+  <span>Last regen: 2026-05-23</span>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="overview">1. What solo is</h2>
+<p>One process, one DB, one bot. Telegram is the only surface; SQLite is the only store. Every LLM call routes through a single observable wrapper that writes a trace row for cost &amp; debug visibility. Classification is <em>lazy</em>: thoughts sit unprocessed in <code>entries</code> until <code>/top3</code> wakes the classifier.</p>
+<div class="callout">
+  <strong>Design tension this resolves:</strong> agent frameworks are overkill for a system that&rsquo;s 90% deterministic. solo hand-rolls the small bits that matter (an LLM client wrapper, a trace table, prompts-as-files) and skips the runtime dependencies (no OpenClaw / Hermes / Pi). See <a href="architecture.md">docs/architecture.md</a> &sect;2&ndash;3.
+</div>
+<p><strong>Invariants:</strong></p>
+<ul>
+  <li><strong>Capture must never fail.</strong> The Telegram handler swallows everything; better to drop a reply than to lose a thought.</li>
+  <li><strong>Pull, not push.</strong> No daily digests, no nudges. User asks, system responds.</li>
+  <li><strong>Silent by default.</strong> Capture replies <code>captured</code> and nothing else.</li>
+  <li><strong>All LLM calls go through <code>LLMClient</code>.</strong> Importing <code>openai</code> anywhere else is a convention violation.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="flow">2. End-to-end flow</h2>
+<p>From a user&rsquo;s thought to a ranked priority. Slices 1&ndash;3 are live today; slice 4 closes the loop.</p>
+
+<div class="flow">
+  <div class="row">
+    <div class="node">📱 User<div class="s">Telegram client</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice1">Telegram API<div class="s">long poll</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice1">bot.py<br/>handle_message<div class="s">capture, defensively</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice1">db.insert_entry<div class="s">stdlib sqlite3</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice1"><strong>entries</strong> row<div class="s">classified=0</div></div>
+  </div>
+  <div class="arrow down">&darr; <span style="font-size:12px">user types <code>/top3</code> (slice 4)</span></div>
+  <div class="row">
+    <div class="node slice4">/top3 handler<div class="s">commands.py</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice3">classifier.<br/>classify_pending<div class="s">sequential, bounded retry</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice2">LLMClient.<br/>structured()<div class="s">openai SDK → OpenRouter</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice2">llm_calls<br/>trace row<div class="s">cost &amp; latency</div></div>
+  </div>
+  <div class="arrow down">&darr;</div>
+  <div class="row">
+    <div class="node slice3">entries row updated<div class="s">kind, summary, priority, classified=1</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice4">rank.py<div class="s">priority desc, recent first</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node slice4">Telegram reply<div class="s">top 3 items</div></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="schema">3. Database schema</h2>
+<p>One SQLite file (<code>data/solo.db</code>) with two tables. WAL mode. Idempotent <code>CREATE</code> + per-column <code>ALTER</code> migration in <code>get_connection()</code>.</p>
+
+<h3><code>entries</code> &mdash; the captured thoughts</h3>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>INTEGER PK</td><td>autoincrement</td></tr>
+    <tr><td><code>raw_text</code></td><td>TEXT</td><td>exact message body</td></tr>
+    <tr><td><code>telegram_chat_id</code></td><td>INTEGER</td><td>for allow-list filtering</td></tr>
+    <tr><td><code>telegram_message_id</code></td><td>INTEGER</td><td>idempotency anchor</td></tr>
+    <tr><td><code>telegram_message_json</code></td><td>TEXT</td><td>full payload, kept for replay</td></tr>
+    <tr><td><code>created_at</code></td><td>TEXT</td><td>ISO 8601, default = now()</td></tr>
+    <tr><td><code>classified</code></td><td>INTEGER</td><td>0/1 flag, default 0</td></tr>
+    <tr><td><code>kind</code></td><td>TEXT</td><td>idea / soft_task / hard_task / note <span class="pill green">slice 3</span></td></tr>
+    <tr><td><code>summary</code></td><td>TEXT</td><td>&le;120 chars <span class="pill green">slice 3</span></td></tr>
+    <tr><td><code>priority</code></td><td>TEXT</td><td>low / medium / high <span class="pill green">slice 3</span></td></tr>
+    <tr><td><code>classification_attempts</code></td><td>INTEGER</td><td>bounded retry counter <span class="pill green">slice 3</span></td></tr>
+  </tbody>
+</table>
+
+<h3><code>llm_calls</code> &mdash; the trace table</h3>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>INTEGER PK</td><td>autoincrement</td></tr>
+    <tr><td><code>ts</code></td><td>TEXT</td><td>ISO 8601, recorded at call start</td></tr>
+    <tr><td><code>model</code></td><td>TEXT</td><td>e.g. <code>minimax/minimax-m2.7</code></td></tr>
+    <tr><td><code>prompt_name</code></td><td>TEXT</td><td>file in <code>src/solo/prompts/</code></td></tr>
+    <tr><td><code>prompt_text</code></td><td>TEXT</td><td>full rendered messages</td></tr>
+    <tr><td><code>response_text</code></td><td>TEXT</td><td>raw model output</td></tr>
+    <tr><td><code>input_tokens</code> / <code>output_tokens</code></td><td>INTEGER</td><td>from usage</td></tr>
+    <tr><td><code>cost_usd</code></td><td>REAL</td><td>computed via <code>MODEL_PRICING</code></td></tr>
+    <tr><td><code>latency_ms</code></td><td>INTEGER</td><td>monotonic clock</td></tr>
+    <tr><td><code>status</code></td><td>TEXT</td><td>ok / error</td></tr>
+    <tr><td><code>error</code></td><td>TEXT</td><td>exception string when status=error</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="slice1">4. Slice 1 &mdash; Capture</h2>
+<div class="slice s1">
+  <h3>Telegram &rarr; SQLite <span class="pill green">done</span></h3>
+  <div class="why">Goal: get raw thoughts off the user&rsquo;s phone and into a durable store, with the <strong>capture-must-never-fail</strong> invariant.</div>
+  <p>Long-polling bot, no webhooks. <code>handle_message</code> is wrapped in a try/except that logs &amp; drops on any failure &mdash; the user&rsquo;s thought is never lost to a stack trace. Optional allow-list (<code>SOLO_ALLOWED_CHATS</code>) filters by Telegram chat id.</p>
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Files</h4>
+  <div class="files">
+    <div>src/solo/bot.py</div>
+    <div>src/solo/db.py</div>
+    <div>src/solo/__main__.py</div>
+    <div>tests/test_bot.py, tests/test_db.py</div>
+  </div>
+<pre><code># bot.py — the heart of slice 1
+try:
+    insert_entry(conn,
+        raw_text=update.message.text,
+        telegram_chat_id=chat_id,
+        telegram_message_id=update.message.message_id,
+        telegram_message_json=update.message.to_json())
+    await update.message.reply_text("captured")
+except Exception:
+    logger.exception("capture failed ...")  # swallow — never raise</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="slice2">5. Slice 2 &mdash; LLMClient + trace</h2>
+<div class="slice s2">
+  <h3>Single observable entry point for every LLM call <span class="pill green">done</span></h3>
+  <div class="why">Goal: one wrapper for OpenRouter calls; every call writes a trace row with tokens, cost, and latency.</div>
+  <p>Routes through the <code>openai</code> SDK pointed at OpenRouter&rsquo;s OpenAI-compatible endpoint. Two methods: <code>chat()</code> for plain text and <code>structured()</code> for Pydantic-shaped output via <code>response_format=schema</code>. <code>structured()</code> renders a named prompt from <code>src/solo/prompts/&lt;name&gt;.md</code>. Both methods write a trace row on success <strong>and</strong> on failure &mdash; observability includes errors.</p>
+  <p><strong>Pricing</strong> is a static <code>MODEL_PRICING</code> dict in <code>llm.py</code>; verified against openrouter.ai/models at write time.</p>
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Files</h4>
+  <div class="files">
+    <div>src/solo/llm.py</div>
+    <div>src/solo/trace.py</div>
+    <div>src/solo/prompts.py</div>
+    <div>tests/test_llm.py, test_trace.py, test_prompts.py</div>
+  </div>
+<pre><code># llm.py — the public surface
+class LLMClient:
+    async def chat(self, messages, *, model, prompt_name=None) -&gt; str: ...
+    async def structured(self, prompt_name, schema, *, model, vars) -&gt; BaseModel: ...
+
+# Every call body looks like:
+#   ts = now()
+#   try:    response = await openai_call(...)
+#           write_trace(status="ok", tokens=..., cost=..., latency=...)
+#   except: write_trace(status="error", error=str(exc));  raise</code></pre>
+  <p>For the lifecycle nuance of how the trace writer opens its SQLite connection, see <a href="decisions/0004-llmclient-connection-lifecycle.md">ADR-0004</a>.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="slice3">6. Slice 3 &mdash; Lazy classifier</h2>
+<div class="slice s3">
+  <h3>Turn a raw entry into <code>(kind, summary, priority)</code> <span class="pill green">done</span></h3>
+  <div class="why">Goal: the smallest correct &amp; idempotent classifier; lazy (runs only when something needs it); never raises.</div>
+  <p><code>classify_pending(conn, llm, *, model, limit=50, max_attempts=3)</code>:</p>
+  <ol>
+    <li>Reads unclassified rows in <code>created_at ASC</code> order, skipping rows with <code>classification_attempts &ge; max_attempts</code>.</li>
+    <li>For each row, calls <code>llm.structured("classifier", ClassifyResult, vars={"entry_text": ...})</code>.</li>
+    <li>On success &rarr; <code>apply_classification()</code> writes <code>kind</code>, <code>summary</code> (truncated to 120 chars), <code>priority</code>, and flips <code>classified=1</code> &mdash; but only if the row is still unclassified (race-safe via <code>WHERE classified=0</code>).</li>
+    <li>On exception &rarr; <code>record_classification_failure()</code> bumps the attempt counter; the loop moves on; bounded retry guarantees a poison entry doesn&rsquo;t block the queue forever.</li>
+  </ol>
+  <p>The function returns the count of rows successfully classified in this call. It is the only function in solo that <em>must</em> never raise on the hot path &mdash; it inherits the capture invariant by extension.</p>
+
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Schema (Pydantic)</h4>
+<pre><code>class ClassifyResult(BaseModel):
+    kind:     Literal["idea", "soft_task", "hard_task", "note"]
+    summary:  str = Field(min_length=1, max_length=200)
+    priority: Literal["low", "medium", "high"]</code></pre>
+
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Prompt (excerpt from <code>src/solo/prompts/classifier.md</code>)</h4>
+<pre><code>You classify a single thought captured in a personal thinking log.
+Categories (kind):
+  - idea       — a thought, hypothesis, or open question to explore
+  - soft_task  — vague work needing thinking before doing
+  - hard_task  — concrete, executable, fits in Apple Reminders
+  - note       — observation, fact, snippet to remember; no action implied
+Priority: high / medium / low
+summary: one short line (≤ 120 chars) in the user's voice.
+Entry:
+{entry_text}</code></pre>
+
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Files</h4>
+  <div class="files">
+    <div>src/solo/classifier.py</div>
+    <div>src/solo/prompts/classifier.md</div>
+    <div>src/solo/db.py (helpers)</div>
+    <div>tests/test_classifier{,_live}.py</div>
+  </div>
+  <p>Design decisions captured in <a href="decisions/0003-classifier-on-entries-vs-side-table.md">ADR-0003</a> (columns on <code>entries</code> vs a side table) and the spec at <a href="superpowers/specs/2026-05-10-classifier-design.md">specs/2026-05-10-classifier-design.md</a>.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="slice4">7. Slice 4 &mdash; /top3 + /log</h2>
+<div class="slice s4">
+  <h3>Surface the value: ranked priorities and a grouped log <span class="pill amber">next</span></h3>
+  <div class="why">Goal: close the loop. The classifier output has no consumer yet; this slice makes it useful.</div>
+  <p>Two Telegram commands on top of what&rsquo;s already shipped:</p>
+  <ul>
+    <li><strong><code>/top3</code></strong> &mdash; (a) call <code>classify_pending</code> first so any backlog drains, then (b) rank by <code>(priority desc, created_at desc)</code> filtered to <code>soft_task</code> &amp; <code>idea</code>, take the top 3.</li>
+    <li><strong><code>/log</code></strong> &mdash; print recent entries grouped by <code>kind</code>; shape TBD in brainstorming.</li>
+  </ul>
+  <p>Open design questions for the brainstorm:</p>
+  <ul>
+    <li>Heuristic ranking vs an LLM scoring pass (architecture.md hints at "single LLM scoring pass" as the V0 default).</li>
+    <li>Should <code>/top3</code> wait synchronously for the backlog to drain, or return what&rsquo;s already classified and kick off classification in the background?</li>
+    <li>How many entries does <code>/log</code> show? Time-window or count?</li>
+    <li>What does the Telegram reply look like &mdash; Markdown, plain text, message-per-item?</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="abstractions">8. Key abstractions</h2>
+<div class="grid2">
+  <div class="card">
+    <div class="k">module</div>
+    <div class="v">solo.llm</div>
+    <div class="d"><code>LLMClient</code>, <code>MODEL_PRICING</code>, <code>compute_cost</code>. The <em>only</em> module allowed to import <code>openai</code>.</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
+    <div class="v">solo.trace</div>
+    <div class="d"><code>ensure_schema</code>, <code>record_call</code>. Trace-table writer; called by <code>LLMClient</code> on every call (ok or error).</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
+    <div class="v">solo.prompts</div>
+    <div class="d"><code>load(name)</code>, <code>render(name, **vars)</code>. Reads from <code>src/solo/prompts/&lt;name&gt;.md</code>. No inline prompts anywhere else.</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
+    <div class="v">solo.db</div>
+    <div class="d">Connection &amp; migration; CRUD helpers. WAL mode, <code>sqlite3.Row</code> factory. Migration is idempotent via per-column <code>PRAGMA table_info</code> check.</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
+    <div class="v">solo.classifier</div>
+    <div class="d"><code>ClassifyResult</code> schema; <code>classify_pending(conn, llm, ...)</code>. Sequential. Bounded retry. Never raises.</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
+    <div class="v">solo.bot</div>
+    <div class="d">Long-polling Telegram entry point. <code>handle_message</code> wraps capture in try/except &mdash; never lets a thought die to a stack trace.</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="concepts">9. Concept primers</h2>
+<p>Every slice that introduces a new AI/agent concept ships with a primer in <code>docs/concepts/</code>. They&rsquo;re short (300&ndash;500 words) and assume the reader is new to AI.</p>
+<div class="grid2">
+  <div class="card">
+    <div class="k">primer</div>
+    <div class="v"><a href="concepts/llm-api-basics.md">LLM API basics</a></div>
+    <div class="d">Chat completions, messages, tokens, the openai SDK shape &mdash; the substrate for everything in slice 2.</div>
+  </div>
+  <div class="card">
+    <div class="k">primer</div>
+    <div class="v"><a href="concepts/observability-trace-table.md">Observability via a trace table</a></div>
+    <div class="d">Why a row per call beats logs/metrics for LLM systems. Pays back forever in cost visibility &amp; debug.</div>
+  </div>
+  <div class="card">
+    <div class="k">primer</div>
+    <div class="v"><a href="concepts/structured-outputs.md">Structured outputs</a></div>
+    <div class="d">Pydantic schemas as the contract between code and model. How <code>response_format</code> changes the loop.</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="decisions">10. Architecture decisions</h2>
+<p>Non-trivial implementation choices that don&rsquo;t fit in <code>docs/architecture.md</code>. Each is ~250 words, recording the <em>why</em>.</p>
+<div class="grid2">
+  <div class="card">
+    <div class="k">ADR-0001</div>
+    <div class="v"><a href="decisions/0001-trace-write-timing.md">Trace write timing</a></div>
+    <div class="d">Trace row goes in on every call &mdash; success and error paths both. Failures are observable.</div>
+  </div>
+  <div class="card">
+    <div class="k">ADR-0002</div>
+    <div class="v"><a href="decisions/0002-llm-module-split.md">Three-module split</a></div>
+    <div class="d"><code>llm.py</code> / <code>prompts.py</code> / <code>trace.py</code> instead of one file. Eval harness will want <code>prompts.py</code> standalone.</div>
+  </div>
+  <div class="card">
+    <div class="k">ADR-0003</div>
+    <div class="v"><a href="decisions/0003-classifier-on-entries-vs-side-table.md">Classifier output on <code>entries</code></a></div>
+    <div class="d">Columns on the row, not a side table. Smaller surface; one query for /top3; race-safe via <code>WHERE classified=0</code>.</div>
+  </div>
+  <div class="card">
+    <div class="k">ADR-0004</div>
+    <div class="v"><a href="decisions/0004-llmclient-connection-lifecycle.md"><code>LLMClient</code> connection lifecycle</a></div>
+    <div class="d">Fresh SQLite connection per trace write. Trade ~2ms/call for zero lifecycle complexity. Revisit when /top3 latency budget bites.</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="status">11. Status &amp; what&rsquo;s next</h2>
+<p>Canonical state lives in <a href="status.md">docs/status.md</a> &mdash; that file is the source of truth; this one mirrors it for context.</p>
+<ul>
+  <li><span class="pill green">done</span> Slice 1 &mdash; Telegram capture &rarr; SQLite</li>
+  <li><span class="pill green">done</span> Slice 2 &mdash; <code>LLMClient</code> + <code>llm_calls</code> trace table</li>
+  <li><span class="pill green">done</span> Slice 3 &mdash; Lazy classifier</li>
+  <li><span class="pill amber">in flight</span> Slice 4 &mdash; <code>/top3</code> and <code>/log</code> Telegram commands</li>
+  <li><span class="pill muted">queued</span> Slice 5 &mdash; Classifier eval harness (<code>evals/classify.jsonl</code> + <code>scripts/eval.py</code>)</li>
+</ul>
+<p><strong>Pending manual verification:</strong> the gated live classifier test (<code>tests/test_classifier_live.py</code>) hasn&rsquo;t been run with a real <code>OPENROUTER_API_KEY</code>. Until it has, the assumption that <code>response_format=schema</code> works reliably against MiniMax M2.7 / Kimi K2.6 is unconfirmed.</p>
+
+<div class="footnote">
+  This walkthrough is hand-maintained alongside <code>docs/status.md</code>. When a new slice ships: add its section, update the flow diagram, and bump the timestamp at the top. The intent is for any reader &mdash; future-you, a teammate, an LLM agent on a different machine &mdash; to grasp the entire system in 10 minutes.
+</div>
+
+</main>
+</div>
+</body>
+</html>
