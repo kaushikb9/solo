@@ -173,7 +173,7 @@
     <li><a href="#slice2">5. Slice 2 — LLMClient + trace</a></li>
     <li><a href="#slice3">6. Slice 3 — Lazy classifier</a></li>
     <li><a href="#slice4">7. Slice 4 — /top3 + /log <span class="pill green">done</span></a></li>
-    <li><a href="#slice5">8. Slice 5 — Eval harness <span class="pill amber">next</span></a></li>
+    <li><a href="#slice5">8. Slice 5 — Eval harness <span class="pill green">done</span></a></li>
     <li><a href="#abstractions">9. Key abstractions</a></li>
     <li><a href="#concepts">10. Concept primers</a></li>
     <li><a href="#decisions">11. Architecture decisions</a></li>
@@ -184,7 +184,8 @@
     <div><span class="dot" style="background: var(--accent-2)"></span> slice 2 — done</div>
     <div><span class="dot" style="background: var(--green)"></span> slice 3 — done</div>
     <div><span class="dot" style="background: var(--green)"></span> slice 4 — done</div>
-    <div><span class="dot" style="background: var(--amber)"></span> slice 5 — next</div>
+    <div><span class="dot" style="background: var(--green)"></span> slice 5 — done</div>
+    <div><span class="dot" style="background: var(--amber)"></span> V1 — next</div>
   </div>
 </nav>
 
@@ -194,8 +195,8 @@
 <p class="lede">A personal thinking companion. Telegram captures raw thoughts &rarr; SQLite stores them &rarr; an LLM classifier runs lazily when <code>/top3</code> is invoked &rarr; ranked priorities come back. 90% deterministic spine; the small agent surface only shows up in V1.</p>
 <div class="meta">
   <span class="pill">V0 scope</span>
-  <span class="pill green">slices 1&ndash;4 shipped</span>
-  <span class="pill amber">slice 5 queued (eval harness)</span>
+  <span class="pill green">V0 complete &mdash; all 5 slices shipped</span>
+  <span class="pill amber">V1 surface (/expand) next</span>
   <span>Last regen: 2026-05-23</span>
 </div>
 
@@ -412,11 +413,30 @@ Entry:
 </div>
 
 <!-- ============================================================ -->
-<h2 id="slice5">8. Slice 5 &mdash; Eval harness <span class="pill amber" style="font-size: 12px; vertical-align: middle;">next</span></h2>
-<div class="slice s4">
-  <h3>Make classifier quality measurable</h3>
+<h2 id="slice5">8. Slice 5 &mdash; Eval harness</h2>
+<div class="slice s3">
+  <h3>Make classifier quality measurable <span class="pill green">done</span></h3>
   <div class="why">Goal: turn &ldquo;is this prompt better&rdquo; from vibes into a number, per architecture.md &sect;2.</div>
-  <p>Plan: <code>evals/classify.jsonl</code> with ~30 hand-labeled entries + <code>scripts/eval.py</code> reporting accuracy across kind, summary similarity, and priority. Single biggest classifier quality win.</p>
+  <p>Three pieces:</p>
+  <ul>
+    <li><strong><code>evals/classify.jsonl</code></strong> &mdash; 15 hand-labeled thought-fragments covering all 4 kinds &times; 3 priorities. Includes intentional edges (<code>"what if we replaced cron with NATS?"</code> &mdash; idea vs. soft_task).</li>
+    <li><strong><code>scripts/eval.py</code></strong> &mdash; sequential runner. Reads JSONL, calls <code>LLMClient.structured</code>, scores, prints a terminal table, writes <code>evals/results/&lt;UTC-ISO&gt;.json</code> for mechanical diffs across runs.</li>
+    <li><strong><code>src/solo/evals.py</code></strong> &mdash; pure scorers: <code>score_kind</code>, <code>score_priority</code> (exact + off-by-one), <code>build_confusion</code>, <code>summarize</code>.</li>
+  </ul>
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Sample terminal output</h4>
+<pre><code>Eval: minimax/minimax-m2.7  ·  classifier  ·  2026-05-23T22:14:00Z  ·  15 rows  ·  28.3s
+
+Kind:      14/15 = 93.3%
+Priority:  11/15 = 73.3%   off-by-one: 26.7%   off-by-two: 0.0%
+Cost:      $0.0042         Mean latency: 1840ms
+
+Confusion (rows = actual, cols = predicted):
+                  idea   soft   hard   note
+  idea               4      1      0      0
+  soft_task          0      3      0      0
+  hard_task          0      0      4      0
+  note               0      0      0      3</code></pre>
+  <p>Cost &amp; latency come from the <code>llm_calls</code> trace table via <code>trace.aggregate_range(conn, id_min, id_max)</code> &mdash; the runner watermarks the max id before/after so eval traffic is aggregated cleanly even if the bot is running concurrently. Summary text is <em>not</em> auto-graded; see <a href="decisions/0006-skip-summary-auto-grading.md">ADR-0006</a>. Spec at <a href="superpowers/specs/2026-05-23-eval-harness-design.md">specs/2026-05-23-eval-harness-design.md</a>.</p>
 </div>
 
 <!-- ============================================================ -->
@@ -450,7 +470,12 @@ Entry:
   <div class="card">
     <div class="k">module</div>
     <div class="v">solo.rank</div>
-    <div class="d">Pure <code>top3(entries)</code>. Sorts by <code>(priority desc, created_at desc)</code>. No DB, no LLM. Deterministic.</div>
+    <div class="d">Pure <code>top3(entries)</code>. Sorts by <code>(priority desc, created_at desc, id desc)</code>. No DB, no LLM. Deterministic.</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
+    <div class="v">solo.evals</div>
+    <div class="d">Pure scoring + aggregation for the eval harness: <code>score_kind</code>, <code>score_priority</code>, <code>build_confusion</code>, <code>summarize</code>. No IO.</div>
   </div>
   <div class="card">
     <div class="k">module</div>
@@ -483,6 +508,11 @@ Entry:
     <div class="v"><a href="concepts/structured-outputs.md">Structured outputs</a></div>
     <div class="d">Pydantic schemas as the contract between code and model. How <code>response_format</code> changes the loop.</div>
   </div>
+  <div class="card">
+    <div class="k">primer</div>
+    <div class="v"><a href="concepts/evaluating-llm-outputs.md">Evaluating LLM outputs</a></div>
+    <div class="d">Why prompts need a metric. Categorical vs prose grading. Why solo skips auto-grading the summary.</div>
+  </div>
 </div>
 
 <!-- ============================================================ -->
@@ -514,6 +544,11 @@ Entry:
     <div class="v"><a href="decisions/0005-heuristic-only-ranking.md">Heuristic-only <code>/top3</code> ranking</a></div>
     <div class="d">No second LLM scoring pass. Classifier already assigns priority; double-dipping doubles cost without measurable gain. Revisit after eval harness lands.</div>
   </div>
+  <div class="card">
+    <div class="k">ADR-0006</div>
+    <div class="v"><a href="decisions/0006-skip-summary-auto-grading.md">Skip auto-grading summary text</a></div>
+    <div class="d">Auto-grading prose with prose needs embeddings. Predictions surfaced in the JSON sidecar instead. Revisit when slice 6 introduces an embedding pipeline.</div>
+  </div>
 </div>
 
 <!-- ============================================================ -->
@@ -524,12 +559,15 @@ Entry:
   <li><span class="pill green">done</span> Slice 2 &mdash; <code>LLMClient</code> + <code>llm_calls</code> trace table</li>
   <li><span class="pill green">done</span> Slice 3 &mdash; Lazy classifier</li>
   <li><span class="pill green">done</span> Slice 4 &mdash; <code>/top3</code> and <code>/log</code> Telegram commands</li>
-  <li><span class="pill amber">next</span> Slice 5 &mdash; Classifier eval harness (<code>evals/classify.jsonl</code> + <code>scripts/eval.py</code>)</li>
+  <li><span class="pill green">done</span> Slice 5 &mdash; Classifier eval harness (<code>evals/classify.jsonl</code> + <code>scripts/eval.py</code>)</li>
+  <li><span class="pill amber">next</span> V1 &mdash; <code>/expand</code> (hand-rolled agent loop, per <a href="architecture.md">architecture.md</a> &sect;1)</li>
 </ul>
+<p><strong>V0 is complete.</strong> All six items in the V0 scope (<a href="../AGENTS.md">AGENTS.md</a> &sect;V0) ship: capture, classifier, /top3, /log, trace table, prompts-as-files, eval harness.</p>
 <p><strong>Pending manual verification:</strong></p>
 <ul>
   <li>The gated live classifier test (<code>tests/test_classifier_live.py</code>) hasn&rsquo;t been run with a real <code>OPENROUTER_API_KEY</code>. Until it has, the assumption that <code>response_format=schema</code> works reliably against MiniMax M2.7 / Kimi K2.6 is unconfirmed.</li>
   <li>End-to-end smoke of <code>/top3</code> and <code>/log</code> against a live Telegram chat &mdash; bot wiring is untested except via the handler-level integration tests.</li>
+  <li>Real eval run: <code>OPENROUTER_API_KEY=&hellip; uv run python scripts/eval.py</code> &mdash; harness shape is unit-tested, but the first real run is what tells us if MiniMax M2.7 produces sane numbers on this seed set.</li>
 </ul>
 
 <div class="footnote">
