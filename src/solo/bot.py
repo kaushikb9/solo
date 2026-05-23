@@ -1,12 +1,21 @@
 import logging
 import os
 import sqlite3
+from pathlib import Path
 
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
+from solo.commands import handle_log, handle_top3
 from solo.db import get_connection, insert_entry
+from solo.llm import LLMClient
 from solo.trace import ensure_schema
 
 logger = logging.getLogger(__name__)
@@ -49,19 +58,37 @@ def main() -> None:
     load_dotenv()
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     db_path = os.environ.get("SOLO_DB_PATH", "./data/solo.db")
+    openrouter_key = os.environ["OPENROUTER_API_KEY"]
+    model = os.environ.get("SOLO_CLASSIFIER_MODEL", "minimax/minimax-m2.7")
 
     raw_chats = os.environ.get("SOLO_ALLOWED_CHATS", "")
     allowed_chats = {int(c.strip()) for c in raw_chats.split(",") if c.strip()}
 
     conn = get_connection(db_path)
     ensure_schema(conn)
+    llm = LLMClient(openrouter_key, Path(db_path))
 
     app = ApplicationBuilder().token(token).build()
 
-    async def _handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await handle_message(update, context, conn=conn, allowed_chats=allowed_chats)
+    async def _capture(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_message(update, ctx, conn=conn, allowed_chats=allowed_chats)
 
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _handler))
+    async def _top3(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_top3(
+            update,
+            ctx,
+            conn=conn,
+            llm=llm,
+            model=model,
+            allowed_chats=allowed_chats,
+        )
+
+    async def _log(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_log(update, ctx, conn=conn, allowed_chats=allowed_chats)
+
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _capture))
+    app.add_handler(CommandHandler("top3", _top3))
+    app.add_handler(CommandHandler("log", _log))
 
     logger.info("Bot starting (long polling)...")
     app.run_polling()
