@@ -222,18 +222,31 @@ class TestHandleTop3:
         assert msg._replied is None
 
     @pytest.mark.asyncio
-    async def test_handler_never_raises(self, db_conn):
+    async def test_handler_replies_fallback_on_llm_failure(self, db_conn):
         from solo.commands import handle_top3
         from solo.db import insert_entry
 
         insert_entry(db_conn, "broken", 1, 1, "{}")
         llm = FakeLLM(errors=[RuntimeError("boom")])
-        db_conn.close()  # force DB error inside handler
 
         msg = FakeMessage("/top3")
         update = FakeUpdate(msg)
         await handle_top3(update, FakeContext(), conn=db_conn, llm=llm)
-        # Should not raise — the assertion is that we got here.
+        # classify_pending swallows its own errors; the user still sees the
+        # "nothing to rank yet" path because no rows became classified.
+        assert msg._replied == "nothing to rank yet"
+
+    @pytest.mark.asyncio
+    async def test_handler_replies_fallback_on_db_failure(self, db_conn):
+        from solo.commands import handle_top3
+
+        db_conn.close()  # force a DB error inside fetch_classified
+
+        msg = FakeMessage("/top3")
+        update = FakeUpdate(msg)
+        await handle_top3(update, FakeContext(), conn=db_conn, llm=FakeLLM())
+        # Handler caught the DB error and sent the fallback message.
+        assert msg._replied == "sorry, /top3 failed — check logs"
 
 
 class TestHandleLog:
@@ -277,11 +290,26 @@ class TestHandleLog:
         assert msg._replied is None
 
     @pytest.mark.asyncio
-    async def test_handler_never_raises(self, db_conn):
+    async def test_handler_replies_fallback_on_db_failure(self, db_conn):
         from solo.commands import handle_log
 
         db_conn.close()
         msg = FakeMessage("/log")
         update = FakeUpdate(msg)
         await handle_log(update, FakeContext(), conn=db_conn)
-        # No raise — pass.
+        assert msg._replied == "sorry, /log failed — check logs"
+
+    def test_format_log_renders_short_date_suffix(self):
+        from solo.commands import format_log
+
+        rows = [
+            {
+                "kind": "idea",
+                "summary": "i1",
+                "raw_text": "i1",
+                "classified": 1,
+                "created_at": "2026-05-23T10:00:00.000Z",
+            }
+        ]
+        out = format_log(rows)
+        assert "i1 (05-23)" in out

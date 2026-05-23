@@ -7,11 +7,12 @@ until max_attempts is reached.
 
 import logging
 import sqlite3
-from typing import Literal, Protocol
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from solo import db
+from solo.llm import SupportsStructured
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +23,9 @@ class ClassifyResult(BaseModel):
     priority: Literal["low", "medium", "high"]
 
 
-class _SupportsStructured(Protocol):
-    async def structured(self, prompt_name, schema, *, model, vars): ...
-
-
 async def classify_pending(
     conn: sqlite3.Connection,
-    llm: _SupportsStructured,
+    llm: SupportsStructured,
     *,
     model: str,
     limit: int = 50,

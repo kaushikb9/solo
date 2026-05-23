@@ -8,12 +8,24 @@ import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Protocol
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from solo import trace
 from solo.db import get_connection
+
+# Default classifier model. Overridable per-call via the `model=` kwarg.
+DEFAULT_MODEL = "minimax/minimax-m2.7"
+
+
+class SupportsStructured(Protocol):
+    """Duck-typed LLM dependency. Lets callers depend on a tiny surface
+    rather than the full LLMClient — handy for tests with a FakeLLM."""
+
+    async def structured(self, prompt_name, schema, *, model, vars): ...
+
 
 # Verified at openrouter.ai/models — update on drift.
 MODEL_PRICING: dict[str, tuple[float, float]] = {

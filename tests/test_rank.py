@@ -36,3 +36,26 @@ def test_top3_unknown_priority_sorts_to_bottom():
     ]
     out = top3(rows)
     assert [r["id"] for r in out] == [2, 1]
+
+
+def test_top3_unknown_priority_below_known_with_same_timestamp():
+    from solo.rank import top3
+
+    rows = [
+        {"id": 1, "priority": "bogus", "created_at": "2026-05-23T10:00:00Z"},
+        {"id": 2, "priority": "low", "created_at": "2026-05-23T10:00:00Z"},
+    ]
+    out = top3(rows)
+    assert [r["id"] for r in out] == [2, 1]
+
+
+def test_top3_ties_broken_by_id_desc():
+    from solo.rank import top3
+
+    rows = [
+        {"id": 1, "priority": "high", "created_at": "2026-05-23T10:00:00Z"},
+        {"id": 2, "priority": "high", "created_at": "2026-05-23T10:00:00Z"},
+        {"id": 3, "priority": "high", "created_at": "2026-05-23T10:00:00Z"},
+    ]
+    out = top3(rows)
+    assert [r["id"] for r in out] == [3, 2, 1]

@@ -6,23 +6,20 @@ the rendering logic is unit-testable without Telegram or DB fixtures.
 
 import logging
 import sqlite3
-from typing import Protocol
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from solo import db, rank
 from solo.classifier import classify_pending
+from solo.llm import DEFAULT_MODEL, SupportsStructured
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "minimax/minimax-m2.7"
 _LOG_LIMIT = 20
 _KIND_ORDER = ("idea", "soft_task", "hard_task", "note")
-
-
-class _SupportsStructured(Protocol):
-    async def structured(self, prompt_name, schema, *, model, vars): ...
+_TOP3_FAILED = "sorry, /top3 failed — check logs"
+_LOG_FAILED = "sorry, /log failed — check logs"
 
 
 def _allowed(update: Update, allowed_chats: set[int] | None) -> bool:
@@ -35,8 +32,10 @@ def _allowed(update: Update, allowed_chats: set[int] | None) -> bool:
     return True
 
 
-def _short_date(iso_ts: str) -> str:
-    # "2026-05-23T10:00:00.000Z" -> "05-23"
+def _short_date(iso_ts: str | None) -> str:
+    """Render the MM-DD slice of an ISO timestamp; empty on anything unexpected."""
+    if not iso_ts or len(iso_ts) < 10:
+        return ""
     return iso_ts[5:10]
 
 
@@ -83,7 +82,7 @@ async def handle_top3(
     context: ContextTypes.DEFAULT_TYPE,
     *,
     conn: sqlite3.Connection,
-    llm: _SupportsStructured,
+    llm: SupportsStructured,
     model: str = DEFAULT_MODEL,
     allowed_chats: set[int] | None = None,
 ) -> None:
@@ -96,6 +95,10 @@ async def handle_top3(
         await update.message.reply_text(format_top3(top))
     except Exception:
         logger.exception("/top3 failed for chat=%d", update.effective_chat.id)
+        try:
+            await update.message.reply_text(_TOP3_FAILED)
+        except Exception:
+            logger.exception("/top3 fallback reply also failed")
 
 
 async def handle_log(
@@ -112,3 +115,7 @@ async def handle_log(
         await update.message.reply_text(format_log(rows))
     except Exception:
         logger.exception("/log failed for chat=%d", update.effective_chat.id)
+        try:
+            await update.message.reply_text(_LOG_FAILED)
+        except Exception:
+            logger.exception("/log fallback reply also failed")
