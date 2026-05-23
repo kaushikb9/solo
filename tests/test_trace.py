@@ -152,3 +152,69 @@ class TestRecordCall:
                 status="weird",  # violates CHECK constraint
                 error=None,
             )
+
+
+class TestAggregateRange:
+    def test_aggregates_cost_and_latency_within_range(self, conn):
+        from solo.trace import aggregate_range, ensure_schema, record_call
+
+        ensure_schema(conn)
+        for i, latency in enumerate([100, 200, 300]):
+            record_call(
+                conn,
+                ts=f"2026-05-23T10:00:{i:02d}Z",
+                model="minimax/minimax-m2.7",
+                prompt_name="classifier",
+                prompt_text="x",
+                response_text="y",
+                input_tokens=10,
+                output_tokens=5,
+                cost_usd=0.0001,
+                latency_ms=latency,
+                status="ok",
+                error=None,
+            )
+
+        ids = [r[0] for r in conn.execute("SELECT id FROM llm_calls ORDER BY id").fetchall()]
+        out = aggregate_range(conn, id_min=ids[0], id_max=ids[-1])
+
+        assert out["count"] == 3
+        assert out["errors"] == 0
+        assert abs(out["total_cost_usd"] - 0.0003) < 1e-9
+        assert out["mean_latency_ms"] == 200
+
+    def test_aggregate_range_empty_returns_zeros(self, conn):
+        from solo.trace import aggregate_range, ensure_schema
+
+        ensure_schema(conn)
+        out = aggregate_range(conn, id_min=1, id_max=1)
+        assert out == {
+            "count": 0,
+            "errors": 0,
+            "total_cost_usd": 0.0,
+            "mean_latency_ms": 0,
+        }
+
+    def test_aggregate_range_counts_errors(self, conn):
+        from solo.trace import aggregate_range, ensure_schema, record_call
+
+        ensure_schema(conn)
+        record_call(
+            conn,
+            ts="2026-05-23T10:00:00Z",
+            model="minimax/minimax-m2.7",
+            prompt_name="classifier",
+            prompt_text="x",
+            response_text=None,
+            input_tokens=None,
+            output_tokens=None,
+            cost_usd=None,
+            latency_ms=50,
+            status="error",
+            error="boom",
+        )
+
+        ids = [r[0] for r in conn.execute("SELECT id FROM llm_calls").fetchall()]
+        out = aggregate_range(conn, id_min=ids[0], id_max=ids[0])
+        assert out["count"] == 1
+        assert out["errors"] == 1

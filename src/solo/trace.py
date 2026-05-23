@@ -53,3 +53,27 @@ def record_call(
     )
     conn.commit()
     return cursor.lastrowid
+
+
+def aggregate_range(
+    conn: sqlite3.Connection, *, id_min: int, id_max: int
+) -> dict:
+    """Aggregate count/errors/cost/mean-latency over llm_calls in [id_min, id_max]."""
+    row = conn.execute(
+        """
+        SELECT
+            COUNT(*)                                              AS count,
+            COALESCE(SUM(CASE WHEN status='error' THEN 1 ELSE 0 END), 0) AS errors,
+            COALESCE(SUM(cost_usd), 0.0)                          AS total_cost_usd,
+            COALESCE(AVG(latency_ms), 0)                          AS mean_latency_ms
+        FROM llm_calls
+        WHERE id BETWEEN ? AND ?
+        """,
+        (id_min, id_max),
+    ).fetchone()
+    return {
+        "count": int(row[0] or 0),
+        "errors": int(row[1] or 0),
+        "total_cost_usd": float(row[2] or 0.0),
+        "mean_latency_ms": int(round(row[3] or 0)),
+    }
