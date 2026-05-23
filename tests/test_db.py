@@ -287,3 +287,52 @@ class TestRecordClassificationFailure:
         record_classification_failure(conn, rid)
         classified = conn.execute("SELECT classified FROM entries WHERE id=?", (rid,)).fetchone()[0]
         assert classified == 0
+
+
+class TestFetchClassified:
+    def test_returns_only_classified_rows_with_matching_kinds(self, conn):
+        from solo.db import apply_classification, fetch_classified, insert_entry
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        c = insert_entry(conn, "c", 1, 3, "{}")
+        insert_entry(conn, "d", 1, 4, "{}")  # stays unclassified
+
+        apply_classification(conn, a, "idea", "a", "high")
+        apply_classification(conn, b, "soft_task", "b", "medium")
+        apply_classification(conn, c, "hard_task", "c", "low")
+
+        rows = fetch_classified(conn, kinds=["idea", "soft_task"])
+        ids = sorted(r["id"] for r in rows)
+        assert ids == [a, b]
+
+    def test_orders_newest_first(self, conn):
+        from solo.db import apply_classification, fetch_classified, insert_entry
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        apply_classification(conn, a, "idea", "a", "high")
+        apply_classification(conn, b, "idea", "b", "low")
+        conn.execute(
+            "UPDATE entries SET created_at='2030-01-01T00:00:00.000Z' WHERE id=?",
+            (a,),
+        )
+        conn.commit()
+
+        rows = fetch_classified(conn, kinds=["idea"])
+        assert [r["id"] for r in rows] == [a, b]
+
+    def test_respects_limit(self, conn):
+        from solo.db import apply_classification, fetch_classified, insert_entry
+
+        for i in range(5):
+            rid = insert_entry(conn, f"t{i}", 1, i, "{}")
+            apply_classification(conn, rid, "idea", f"t{i}", "low")
+
+        rows = fetch_classified(conn, kinds=["idea"], limit=2)
+        assert len(rows) == 2
+
+    def test_empty_kinds_returns_empty(self, conn):
+        from solo.db import fetch_classified
+
+        assert fetch_classified(conn, kinds=[]) == []

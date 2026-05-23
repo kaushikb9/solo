@@ -114,3 +114,24 @@ def record_classification_failure(conn: sqlite3.Connection, entry_id: int) -> No
         (entry_id,),
     )
     conn.commit()
+
+
+def fetch_classified(
+    conn: sqlite3.Connection,
+    kinds: list[str],
+    limit: int = 200,
+) -> list[dict]:
+    """Return classified entries matching any of the given kinds, newest first.
+
+    `kinds` is code-controlled (not user input), so building the IN-clause
+    via string interpolation is safe.
+    """
+    if not kinds:
+        return []
+    placeholders = ",".join("?" * len(kinds))
+    cursor = conn.execute(
+        f"SELECT * FROM entries WHERE classified = 1 AND kind IN ({placeholders}) "
+        "ORDER BY created_at DESC, id DESC LIMIT ?",
+        (*kinds, limit),
+    )
+    return [dict(row) for row in cursor.fetchall()]
