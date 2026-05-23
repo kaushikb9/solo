@@ -29,4 +29,7 @@ Length: 300–500 words. Concrete > exhaustive.
 
 ## Index
 
-_(empty — populated as concepts are introduced)_
+- [LLM API basics](llm-api-basics.md) — chat completions, messages, tokens, the openai SDK shape
+- [Observability via a trace table](observability-trace-table.md) — why a row per LLM call beats logs/metrics
+- [Structured outputs](structured-outputs.md) — Pydantic schemas as the contract between code and model
+- [Evaluating LLM outputs](evaluating-llm-outputs.md) — eval harnesses, classifier metrics, why prose is hard to grade
