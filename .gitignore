@@ -36,3 +36,6 @@ logs/
 .idea/
 *.swp
 *.swo
+
+# Eval run outputs are local artifacts, not source.
+evals/results/*.json
