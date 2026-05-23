@@ -55,9 +55,7 @@ def record_call(
     return cursor.lastrowid
 
 
-def aggregate_range(
-    conn: sqlite3.Connection, *, id_min: int, id_max: int
-) -> dict:
+def aggregate_range(conn: sqlite3.Connection, *, id_min: int, id_max: int) -> dict:
     """Aggregate count/errors/cost/mean-latency over llm_calls in [id_min, id_max]."""
     row = conn.execute(
         """

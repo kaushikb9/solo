@@ -128,10 +128,7 @@ def _print_table(report: dict) -> None:
             f"off-by-two: {pct(agg['priority_off_by_two'])}"
         )
 
-    print(
-        f"Cost:      ${trace['total_cost_usd']:.4f}   "
-        f"Mean latency: {trace['mean_latency_ms']}ms"
-    )
+    print(f"Cost:      ${trace['total_cost_usd']:.4f}   Mean latency: {trace['mean_latency_ms']}ms")
 
     if report["errors"]:
         print(f"Errors:    {len(report['errors'])} (of {n + len(report['errors'])} attempted)")
@@ -156,9 +153,7 @@ def main() -> None:
     p.add_argument("--db", default="./data/solo.db")
     args = p.parse_args()
 
-    report = asyncio.run(
-        _run(args.model, args.prompt, Path(args.jsonl), Path(args.db))
-    )
+    report = asyncio.run(_run(args.model, args.prompt, Path(args.jsonl), Path(args.db)))
     _print_table(report)
 
     out_dir = Path("evals/results")
