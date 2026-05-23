@@ -35,3 +35,4 @@ Length: ~250 words. The point is recording *why*, not exhaustive prose.
 - [0003 — Classifier output on entries vs side table](0003-classifier-on-entries-vs-side-table.md)
 - [0004 — `LLMClient` opens a fresh SQLite connection per trace write](0004-llmclient-connection-lifecycle.md)
 - [0005 — `/top3` uses a heuristic-only ranker, no second LLM pass](0005-heuristic-only-ranking.md)
+- [0006 — Skip auto-grading the classifier `summary` field in evals](0006-skip-summary-auto-grading.md)
