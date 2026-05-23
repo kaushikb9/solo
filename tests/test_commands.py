@@ -144,3 +144,146 @@ class TestFormatLog:
         from solo.commands import format_log
 
         assert format_log([]) == "nothing yet"
+
+
+class TestHandleTop3:
+    @pytest.mark.asyncio
+    async def test_drains_backlog_then_replies(self, db_conn):
+        from solo.classifier import ClassifyResult
+        from solo.commands import handle_top3
+        from solo.db import insert_entry
+
+        insert_entry(db_conn, "explore embeddings", 1, 1, "{}")
+        insert_entry(db_conn, "positioning", 1, 2, "{}")
+        llm = FakeLLM(
+            results=[
+                ClassifyResult(
+                    kind="idea", summary="explore embeddings", priority="medium"
+                ),
+                ClassifyResult(kind="soft_task", summary="positioning", priority="high"),
+            ]
+        )
+
+        msg = FakeMessage("/top3")
+        update = FakeUpdate(msg)
+        await handle_top3(update, FakeContext(), conn=db_conn, llm=llm)
+
+        assert msg._replied is not None
+        assert "Top 3:" in msg._replied
+        assert "[high · soft_task] positioning" in msg._replied
+        assert "[medium · idea] explore embeddings" in msg._replied
+        assert len(llm.calls) == 2
+
+    @pytest.mark.asyncio
+    async def test_filters_to_soft_task_and_idea(self, db_conn):
+        from solo.commands import handle_top3
+        from solo.db import apply_classification, insert_entry
+
+        a = insert_entry(db_conn, "soft", 1, 1, "{}")
+        b = insert_entry(db_conn, "idea", 1, 2, "{}")
+        c = insert_entry(db_conn, "hard", 1, 3, "{}")
+        d = insert_entry(db_conn, "note", 1, 4, "{}")
+        apply_classification(db_conn, a, "soft_task", "soft", "high")
+        apply_classification(db_conn, b, "idea", "idea", "high")
+        apply_classification(db_conn, c, "hard_task", "hard", "high")
+        apply_classification(db_conn, d, "note", "note", "high")
+
+        msg = FakeMessage("/top3")
+        update = FakeUpdate(msg)
+        await handle_top3(update, FakeContext(), conn=db_conn, llm=FakeLLM())
+
+        assert "soft" in msg._replied
+        assert "idea" in msg._replied
+        assert "hard" not in msg._replied
+        assert "note" not in msg._replied
+
+    @pytest.mark.asyncio
+    async def test_empty_pool_returns_nothing_message(self, db_conn):
+        from solo.commands import handle_top3
+
+        msg = FakeMessage("/top3")
+        update = FakeUpdate(msg)
+        await handle_top3(update, FakeContext(), conn=db_conn, llm=FakeLLM())
+
+        assert msg._replied == "nothing to rank yet"
+
+    @pytest.mark.asyncio
+    async def test_rejects_disallowed_chat(self, db_conn):
+        from solo.commands import handle_top3
+
+        msg = FakeMessage("/top3", chat_id=666)
+        update = FakeUpdate(msg)
+        await handle_top3(
+            update,
+            FakeContext(),
+            conn=db_conn,
+            llm=FakeLLM(),
+            allowed_chats={123},
+        )
+
+        assert msg._replied is None
+
+    @pytest.mark.asyncio
+    async def test_handler_never_raises(self, db_conn):
+        from solo.commands import handle_top3
+        from solo.db import insert_entry
+
+        insert_entry(db_conn, "broken", 1, 1, "{}")
+        llm = FakeLLM(errors=[RuntimeError("boom")])
+        db_conn.close()  # force DB error inside handler
+
+        msg = FakeMessage("/top3")
+        update = FakeUpdate(msg)
+        await handle_top3(update, FakeContext(), conn=db_conn, llm=llm)
+        # Should not raise — the assertion is that we got here.
+
+
+class TestHandleLog:
+    @pytest.mark.asyncio
+    async def test_replies_with_grouped_log(self, db_conn):
+        from solo.commands import handle_log
+        from solo.db import apply_classification, insert_entry
+
+        a = insert_entry(db_conn, "i1", 1, 1, "{}")
+        b = insert_entry(db_conn, "s1", 1, 2, "{}")
+        apply_classification(db_conn, a, "idea", "i1", "high")
+        apply_classification(db_conn, b, "soft_task", "s1", "low")
+
+        msg = FakeMessage("/log")
+        update = FakeUpdate(msg)
+        await handle_log(update, FakeContext(), conn=db_conn)
+
+        assert "— idea —" in msg._replied
+        assert "— soft_task —" in msg._replied
+        assert "i1" in msg._replied
+        assert "s1" in msg._replied
+
+    @pytest.mark.asyncio
+    async def test_empty_returns_nothing_yet(self, db_conn):
+        from solo.commands import handle_log
+
+        msg = FakeMessage("/log")
+        update = FakeUpdate(msg)
+        await handle_log(update, FakeContext(), conn=db_conn)
+
+        assert msg._replied == "nothing yet"
+
+    @pytest.mark.asyncio
+    async def test_rejects_disallowed_chat(self, db_conn):
+        from solo.commands import handle_log
+
+        msg = FakeMessage("/log", chat_id=666)
+        update = FakeUpdate(msg)
+        await handle_log(update, FakeContext(), conn=db_conn, allowed_chats={123})
+
+        assert msg._replied is None
+
+    @pytest.mark.asyncio
+    async def test_handler_never_raises(self, db_conn):
+        from solo.commands import handle_log
+
+        db_conn.close()
+        msg = FakeMessage("/log")
+        update = FakeUpdate(msg)
+        await handle_log(update, FakeContext(), conn=db_conn)
+        # No raise — pass.
