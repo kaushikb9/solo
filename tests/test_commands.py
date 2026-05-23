@@ -157,9 +157,7 @@ class TestHandleTop3:
         insert_entry(db_conn, "positioning", 1, 2, "{}")
         llm = FakeLLM(
             results=[
-                ClassifyResult(
-                    kind="idea", summary="explore embeddings", priority="medium"
-                ),
+                ClassifyResult(kind="idea", summary="explore embeddings", priority="medium"),
                 ClassifyResult(kind="soft_task", summary="positioning", priority="high"),
             ]
         )

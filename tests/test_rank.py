@@ -21,8 +21,7 @@ def test_top3_caps_at_three():
     from solo.rank import top3
 
     rows = [
-        {"id": i, "priority": "high", "created_at": f"2026-05-23T{i:02d}:00:00Z"}
-        for i in range(10)
+        {"id": i, "priority": "high", "created_at": f"2026-05-23T{i:02d}:00:00Z"} for i in range(10)
     ]
     out = top3(rows)
     assert len(out) == 3
