@@ -30,4 +30,7 @@ Length: ~250 words. The point is recording *why*, not exhaustive prose.
 
 ## Index
 
-_(empty — populated as decisions are made)_
+- [0001 — Trace write timing](0001-trace-write-timing.md)
+- [0002 — Three-module split: `llm.py` / `prompts.py` / `trace.py`](0002-llm-module-split.md)
+- [0003 — Classifier output on entries vs side table](0003-classifier-on-entries-vs-side-table.md)
+- [0004 — `LLMClient` opens a fresh SQLite connection per trace write](0004-llmclient-connection-lifecycle.md)
