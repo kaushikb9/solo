@@ -172,17 +172,19 @@
     <li><a href="#slice1">4. Slice 1 — Capture</a></li>
     <li><a href="#slice2">5. Slice 2 — LLMClient + trace</a></li>
     <li><a href="#slice3">6. Slice 3 — Lazy classifier</a></li>
-    <li><a href="#slice4">7. Slice 4 — /top3 + /log <span class="pill amber">next</span></a></li>
-    <li><a href="#abstractions">8. Key abstractions</a></li>
-    <li><a href="#concepts">9. Concept primers</a></li>
-    <li><a href="#decisions">10. Architecture decisions</a></li>
-    <li><a href="#status">11. Status &amp; what&rsquo;s next</a></li>
+    <li><a href="#slice4">7. Slice 4 — /top3 + /log <span class="pill green">done</span></a></li>
+    <li><a href="#slice5">8. Slice 5 — Eval harness <span class="pill amber">next</span></a></li>
+    <li><a href="#abstractions">9. Key abstractions</a></li>
+    <li><a href="#concepts">10. Concept primers</a></li>
+    <li><a href="#decisions">11. Architecture decisions</a></li>
+    <li><a href="#status">12. Status &amp; what&rsquo;s next</a></li>
   </ol>
   <div class="legend">
     <div><span class="dot" style="background: var(--accent)"></span> slice 1 — done</div>
     <div><span class="dot" style="background: var(--accent-2)"></span> slice 2 — done</div>
     <div><span class="dot" style="background: var(--green)"></span> slice 3 — done</div>
-    <div><span class="dot" style="background: var(--amber)"></span> slice 4 — next</div>
+    <div><span class="dot" style="background: var(--green)"></span> slice 4 — done</div>
+    <div><span class="dot" style="background: var(--amber)"></span> slice 5 — next</div>
   </div>
 </nav>
 
@@ -192,8 +194,8 @@
 <p class="lede">A personal thinking companion. Telegram captures raw thoughts &rarr; SQLite stores them &rarr; an LLM classifier runs lazily when <code>/top3</code> is invoked &rarr; ranked priorities come back. 90% deterministic spine; the small agent surface only shows up in V1.</p>
 <div class="meta">
   <span class="pill">V0 scope</span>
-  <span class="pill green">slices 1&ndash;3 shipped</span>
-  <span class="pill amber">slice 4 in flight</span>
+  <span class="pill green">slices 1&ndash;4 shipped</span>
+  <span class="pill amber">slice 5 queued (eval harness)</span>
   <span>Last regen: 2026-05-23</span>
 </div>
 
@@ -229,7 +231,7 @@
   </div>
   <div class="arrow down">&darr; <span style="font-size:12px">user types <code>/top3</code> (slice 4)</span></div>
   <div class="row">
-    <div class="node slice4">/top3 handler<div class="s">commands.py</div></div>
+    <div class="node slice3">/top3 handler<div class="s">commands.py</div></div>
     <span class="arrow">&rarr;</span>
     <div class="node slice3">classifier.<br/>classify_pending<div class="s">sequential, bounded retry</div></div>
     <span class="arrow">&rarr;</span>
@@ -241,9 +243,9 @@
   <div class="row">
     <div class="node slice3">entries row updated<div class="s">kind, summary, priority, classified=1</div></div>
     <span class="arrow">&rarr;</span>
-    <div class="node slice4">rank.py<div class="s">priority desc, recent first</div></div>
+    <div class="node slice3">rank.py<div class="s">priority desc, recent first</div></div>
     <span class="arrow">&rarr;</span>
-    <div class="node slice4">Telegram reply<div class="s">top 3 items</div></div>
+    <div class="node slice3">Telegram reply<div class="s">top 3 items</div></div>
   </div>
 </div>
 
@@ -383,25 +385,42 @@ Entry:
 
 <!-- ============================================================ -->
 <h2 id="slice4">7. Slice 4 &mdash; /top3 + /log</h2>
-<div class="slice s4">
-  <h3>Surface the value: ranked priorities and a grouped log <span class="pill amber">next</span></h3>
-  <div class="why">Goal: close the loop. The classifier output has no consumer yet; this slice makes it useful.</div>
-  <p>Two Telegram commands on top of what&rsquo;s already shipped:</p>
+<div class="slice s3">
+  <h3>Surface the value: ranked priorities and a grouped log <span class="pill green">done</span></h3>
+  <div class="why">Goal: close the loop. The classifier output had no consumer; this slice makes it useful.</div>
+  <p>Two Telegram commands on top of what was already shipped:</p>
   <ul>
-    <li><strong><code>/top3</code></strong> &mdash; (a) call <code>classify_pending</code> first so any backlog drains, then (b) rank by <code>(priority desc, created_at desc)</code> filtered to <code>soft_task</code> &amp; <code>idea</code>, take the top 3.</li>
-    <li><strong><code>/log</code></strong> &mdash; print recent entries grouped by <code>kind</code>; shape TBD in brainstorming.</li>
+    <li><strong><code>/top3</code></strong> &mdash; (a) sync-drain the backlog via <code>await classify_pending(...)</code>; (b) read <code>fetch_classified(kinds=["soft_task","idea"])</code>; (c) run pure <code>rank.top3()</code>; (d) reply.</li>
+    <li><strong><code>/log</code></strong> &mdash; read last 20 entries via <code>get_recent_entries(limit=20)</code>; group by kind into a fixed section order (<code>idea</code> &rarr; <code>soft_task</code> &rarr; <code>hard_task</code> &rarr; <code>note</code> &rarr; <code>unclassified</code>); skip empty sections; reply.</li>
   </ul>
-  <p>Open design questions for the brainstorm:</p>
-  <ul>
-    <li>Heuristic ranking vs an LLM scoring pass (architecture.md hints at "single LLM scoring pass" as the V0 default).</li>
-    <li>Should <code>/top3</code> wait synchronously for the backlog to drain, or return what&rsquo;s already classified and kick off classification in the background?</li>
-    <li>How many entries does <code>/log</code> show? Time-window or count?</li>
-    <li>What does the Telegram reply look like &mdash; Markdown, plain text, message-per-item?</li>
-  </ul>
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Reply shape (/top3)</h4>
+<pre><code>Top 3:
+
+1. [high · soft_task] positioning
+2. [medium · idea]    explore embeddings
+3. [low · idea]       caching paper</code></pre>
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Files</h4>
+  <div class="files">
+    <div>src/solo/rank.py</div>
+    <div>src/solo/commands.py</div>
+    <div>src/solo/db.py (fetch_classified)</div>
+    <div>src/solo/bot.py (CommandHandlers)</div>
+    <div>tests/test_rank.py</div>
+    <div>tests/test_commands.py</div>
+  </div>
+  <p>Resolved design choices captured in <a href="decisions/0005-heuristic-only-ranking.md">ADR-0005</a> (no second LLM pass for ranking) and the spec at <a href="superpowers/specs/2026-05-23-top3-log-design.md">specs/2026-05-23-top3-log-design.md</a>.</p>
 </div>
 
 <!-- ============================================================ -->
-<h2 id="abstractions">8. Key abstractions</h2>
+<h2 id="slice5">8. Slice 5 &mdash; Eval harness <span class="pill amber" style="font-size: 12px; vertical-align: middle;">next</span></h2>
+<div class="slice s4">
+  <h3>Make classifier quality measurable</h3>
+  <div class="why">Goal: turn &ldquo;is this prompt better&rdquo; from vibes into a number, per architecture.md &sect;2.</div>
+  <p>Plan: <code>evals/classify.jsonl</code> with ~30 hand-labeled entries + <code>scripts/eval.py</code> reporting accuracy across kind, summary similarity, and priority. Single biggest classifier quality win.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="abstractions">9. Key abstractions</h2>
 <div class="grid2">
   <div class="card">
     <div class="k">module</div>
@@ -430,13 +449,23 @@ Entry:
   </div>
   <div class="card">
     <div class="k">module</div>
+    <div class="v">solo.rank</div>
+    <div class="d">Pure <code>top3(entries)</code>. Sorts by <code>(priority desc, created_at desc)</code>. No DB, no LLM. Deterministic.</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
+    <div class="v">solo.commands</div>
+    <div class="d"><code>handle_top3</code>, <code>handle_log</code> + pure formatters <code>format_top3</code>, <code>format_log</code>. Try/except at handler boundary so a bug never crashes the polling loop.</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
     <div class="v">solo.bot</div>
-    <div class="d">Long-polling Telegram entry point. <code>handle_message</code> wraps capture in try/except &mdash; never lets a thought die to a stack trace.</div>
+    <div class="d">Long-polling Telegram entry point. <code>handle_message</code> wraps capture in try/except &mdash; never lets a thought die to a stack trace. Registers <code>MessageHandler</code> + <code>CommandHandler</code>s.</div>
   </div>
 </div>
 
 <!-- ============================================================ -->
-<h2 id="concepts">9. Concept primers</h2>
+<h2 id="concepts">10. Concept primers</h2>
 <p>Every slice that introduces a new AI/agent concept ships with a primer in <code>docs/concepts/</code>. They&rsquo;re short (300&ndash;500 words) and assume the reader is new to AI.</p>
 <div class="grid2">
   <div class="card">
@@ -457,7 +486,7 @@ Entry:
 </div>
 
 <!-- ============================================================ -->
-<h2 id="decisions">10. Architecture decisions</h2>
+<h2 id="decisions">11. Architecture decisions</h2>
 <p>Non-trivial implementation choices that don&rsquo;t fit in <code>docs/architecture.md</code>. Each is ~250 words, recording the <em>why</em>.</p>
 <div class="grid2">
   <div class="card">
@@ -480,19 +509,28 @@ Entry:
     <div class="v"><a href="decisions/0004-llmclient-connection-lifecycle.md"><code>LLMClient</code> connection lifecycle</a></div>
     <div class="d">Fresh SQLite connection per trace write. Trade ~2ms/call for zero lifecycle complexity. Revisit when /top3 latency budget bites.</div>
   </div>
+  <div class="card">
+    <div class="k">ADR-0005</div>
+    <div class="v"><a href="decisions/0005-heuristic-only-ranking.md">Heuristic-only <code>/top3</code> ranking</a></div>
+    <div class="d">No second LLM scoring pass. Classifier already assigns priority; double-dipping doubles cost without measurable gain. Revisit after eval harness lands.</div>
+  </div>
 </div>
 
 <!-- ============================================================ -->
-<h2 id="status">11. Status &amp; what&rsquo;s next</h2>
+<h2 id="status">12. Status &amp; what&rsquo;s next</h2>
 <p>Canonical state lives in <a href="status.md">docs/status.md</a> &mdash; that file is the source of truth; this one mirrors it for context.</p>
 <ul>
   <li><span class="pill green">done</span> Slice 1 &mdash; Telegram capture &rarr; SQLite</li>
   <li><span class="pill green">done</span> Slice 2 &mdash; <code>LLMClient</code> + <code>llm_calls</code> trace table</li>
   <li><span class="pill green">done</span> Slice 3 &mdash; Lazy classifier</li>
-  <li><span class="pill amber">in flight</span> Slice 4 &mdash; <code>/top3</code> and <code>/log</code> Telegram commands</li>
-  <li><span class="pill muted">queued</span> Slice 5 &mdash; Classifier eval harness (<code>evals/classify.jsonl</code> + <code>scripts/eval.py</code>)</li>
+  <li><span class="pill green">done</span> Slice 4 &mdash; <code>/top3</code> and <code>/log</code> Telegram commands</li>
+  <li><span class="pill amber">next</span> Slice 5 &mdash; Classifier eval harness (<code>evals/classify.jsonl</code> + <code>scripts/eval.py</code>)</li>
 </ul>
-<p><strong>Pending manual verification:</strong> the gated live classifier test (<code>tests/test_classifier_live.py</code>) hasn&rsquo;t been run with a real <code>OPENROUTER_API_KEY</code>. Until it has, the assumption that <code>response_format=schema</code> works reliably against MiniMax M2.7 / Kimi K2.6 is unconfirmed.</p>
+<p><strong>Pending manual verification:</strong></p>
+<ul>
+  <li>The gated live classifier test (<code>tests/test_classifier_live.py</code>) hasn&rsquo;t been run with a real <code>OPENROUTER_API_KEY</code>. Until it has, the assumption that <code>response_format=schema</code> works reliably against MiniMax M2.7 / Kimi K2.6 is unconfirmed.</li>
+  <li>End-to-end smoke of <code>/top3</code> and <code>/log</code> against a live Telegram chat &mdash; bot wiring is untested except via the handler-level integration tests.</li>
+</ul>
 
 <div class="footnote">
   This walkthrough is hand-maintained alongside <code>docs/status.md</code>. When a new slice ships: add its section, update the flow diagram, and bump the timestamp at the top. The intent is for any reader &mdash; future-you, a teammate, an LLM agent on a different machine &mdash; to grasp the entire system in 10 minutes.
