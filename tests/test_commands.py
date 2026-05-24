@@ -197,79 +197,6 @@ class TestFormatTop3:
         assert "(+3 more)" in out
 
 
-class TestFormatLog:
-    def test_groups_by_kind_in_fixed_section_order(self):
-        from solo.commands import format_log
-
-        rows = [
-            {
-                "kind": "note",
-                "summary": "n1",
-                "raw_text": "n1",
-                "classified": 1,
-                "created_at": "2026-05-22T10:00:00Z",
-            },
-            {
-                "kind": "idea",
-                "summary": "i1",
-                "raw_text": "i1",
-                "classified": 1,
-                "created_at": "2026-05-23T10:00:00Z",
-            },
-            {
-                "kind": "soft_task",
-                "summary": "s1",
-                "raw_text": "s1",
-                "classified": 1,
-                "created_at": "2026-05-21T10:00:00Z",
-            },
-        ]
-        out = format_log(rows)
-        idea_pos = out.find("— idea —")
-        soft_pos = out.find("— soft_task —")
-        note_pos = out.find("— note —")
-        assert idea_pos < soft_pos < note_pos
-
-    def test_skips_empty_sections(self):
-        from solo.commands import format_log
-
-        rows = [
-            {
-                "kind": "idea",
-                "summary": "i1",
-                "raw_text": "i1",
-                "classified": 1,
-                "created_at": "2026-05-23T10:00:00Z",
-            }
-        ]
-        out = format_log(rows)
-        assert "— idea —" in out
-        assert "— soft_task —" not in out
-        assert "— hard_task —" not in out
-        assert "— note —" not in out
-
-    def test_renders_unclassified_section(self):
-        from solo.commands import format_log
-
-        rows = [
-            {
-                "kind": None,
-                "summary": None,
-                "raw_text": "raw thought",
-                "classified": 0,
-                "created_at": "2026-05-23T10:00:00Z",
-            },
-        ]
-        out = format_log(rows)
-        assert "— unclassified —" in out
-        assert "raw thought" in out
-
-    def test_empty_returns_nothing_yet(self):
-        from solo.commands import format_log
-
-        assert format_log([]) == "nothing yet"
-
-
 class TestFormatList:
     def _row(self, **overrides):
         base = {
@@ -377,6 +304,77 @@ class TestFormatList:
         ]
         out = format_list(rows, now=now)
         assert "(3w) [med] ⚠️" in out
+
+
+class TestFormatAll:
+    def _row(self, **overrides):
+        base = {
+            "id": 1,
+            "classified": 1,
+            "kind": "idea",
+            "priority": "med",
+            "summary": "an idea",
+            "raw_text": "an idea",
+            "mentions": None,
+            "done": 0,
+            "created_at": "2026-05-23T10:00:00.000Z",
+        }
+        base.update(overrides)
+        return base
+
+    def test_empty_returns_nothing_yet(self):
+        from solo.commands import format_all
+
+        assert format_all([]) == "nothing yet"
+
+    def test_header_omits_done_count_when_zero(self):
+        from solo.commands import format_all
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        out = format_all([self._row(id=1)], now=now)
+        assert "All (1):" in out
+
+    def test_header_shows_done_count_when_nonzero(self):
+        from solo.commands import format_all
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [
+            self._row(id=1),
+            self._row(id=2, done=1, summary="finished"),
+            self._row(id=3, done=1, summary="also finished"),
+        ]
+        out = format_all(rows, now=now)
+        assert "All (3, 2 done):" in out
+
+    def test_done_rows_render_with_check_prefix(self):
+        from solo.commands import format_all
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [
+            self._row(
+                id=12,
+                summary="Hofstadter on strange loops",
+                done=1,
+                kind="note",
+                created_at="2026-04-26T10:00:00.000Z",
+            )
+        ]
+        out = format_all(rows, now=now)
+        assert "✅ 12 Hofstadter on strange loops [done 4w ago]" in out
+
+    def test_done_rows_grouped_with_their_kind(self):
+        from solo.commands import format_all
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [
+            self._row(id=1, kind="idea", summary="active idea"),
+            self._row(id=2, kind="idea", summary="done idea", done=1),
+        ]
+        out = format_all(rows, now=now)
+        # Both appear under 💡 ideas, active first then done
+        ideas_section = out.split("💡 ideas")[1].split("\n\n")[0]
+        assert "· 1" in ideas_section
+        assert "✅ 2" in ideas_section
 
 
 class TestHandleTop3:

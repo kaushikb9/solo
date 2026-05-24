@@ -33,13 +33,6 @@ def _allowed(update: Update, allowed_chats: set[int] | None) -> bool:
     return True
 
 
-def _short_date(iso_ts: str | None) -> str:
-    """Render the MM-DD slice of an ISO timestamp; empty on anything unexpected."""
-    if not iso_ts or len(iso_ts) < 10:
-        return ""
-    return iso_ts[5:10]
-
-
 def _age(iso_ts: str, *, now: datetime | None = None) -> str:
     """Render the age of an ISO timestamp as 'just now', 'Nd', 'Nw', or 'Nmo'."""
     now = now or datetime.now(UTC)
@@ -159,11 +152,25 @@ def format_list(rows: list[dict], *, now: datetime | None = None) -> str:
     return "\n".join(out)
 
 
-def format_log(rows: list[dict]) -> str:
+def _format_all_row(row: dict, *, now: datetime | None) -> str:
+    age = _age(row["created_at"], now=now)
+    if row.get("done"):
+        summary_or_raw = row.get("summary") or row.get("raw_text")
+        return f"  ✅ {row['id']} {summary_or_raw} [done {age} ago]"
+    return _format_list_row(row, now=now)
+
+
+def format_all(rows: list[dict], *, now: datetime | None = None) -> str:
     if not rows:
         return "nothing yet"
 
-    buckets: dict[str | None, list[dict]] = {k: [] for k in _KIND_ORDER}
+    done_count = sum(1 for r in rows if r.get("done"))
+    if done_count:
+        header = f"All ({len(rows)}, {done_count} done):"
+    else:
+        header = f"All ({len(rows)}):"
+
+    buckets: dict[str | None, list[dict]] = {k: [] for k, _ in _LIST_KIND_ORDER}
     buckets[None] = []
     for row in rows:
         if row.get("classified") and row.get("kind") in buckets:
@@ -171,20 +178,24 @@ def format_log(rows: list[dict]) -> str:
         else:
             buckets[None].append(row)
 
-    out: list[str] = [f"Recent ({len(rows)}):"]
-    for kind in _KIND_ORDER:
+    # Within each section, active rows first, then done rows.
+    for kind in buckets:
+        buckets[kind].sort(key=lambda r: (r.get("done", 0), -r["id"]))
+
+    out: list[str] = [header]
+    for kind, section_header in _LIST_KIND_ORDER:
         items = buckets[kind]
         if not items:
             continue
         out.append("")
-        out.append(f"— {kind} —")
+        out.append(section_header)
         for r in items:
-            out.append(f"  • {r['summary']} ({_short_date(r['created_at'])})")
+            out.append(_format_all_row(r, now=now))
     if buckets[None]:
         out.append("")
-        out.append("— unclassified —")
+        out.append(_UNCLASSIFIED_HEADER)
         for r in buckets[None]:
-            out.append(f"  • {r['raw_text']} ({_short_date(r['created_at'])})")
+            out.append(_format_all_row(r, now=now))
     return "\n".join(out)
 
 
