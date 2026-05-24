@@ -398,9 +398,9 @@ class TestHandleTop3:
         await handle_top3(update, FakeContext(), conn=db_conn, llm=llm)
 
         assert msg._replied is not None
-        assert "Top 3:" in msg._replied
-        assert "[high · soft_task] positioning" in msg._replied
-        assert "[medium · idea] explore embeddings" in msg._replied
+        assert "Top 3 for today:" in msg._replied
+        assert "1️⃣ 💡 positioning" in msg._replied
+        assert "2️⃣ 💡 explore embeddings" in msg._replied
         assert len(llm.calls) == 2
 
     @pytest.mark.asyncio
@@ -480,10 +480,10 @@ class TestHandleTop3:
         assert msg._replied == "sorry, /top3 failed — check logs"
 
 
-class TestHandleLog:
+class TestHandleList:
     @pytest.mark.asyncio
-    async def test_replies_with_grouped_log(self, db_conn):
-        from solo.commands import handle_log
+    async def test_groups_active_items_by_kind(self, db_conn):
+        from solo.commands import handle_list
         from solo.db import apply_classification, insert_entry
 
         a = insert_entry(db_conn, "i1", 1, 1, "{}")
@@ -491,56 +491,89 @@ class TestHandleLog:
         apply_classification(db_conn, a, "idea", "i1", "high")
         apply_classification(db_conn, b, "soft_task", "s1", "low")
 
-        msg = FakeMessage("/log")
+        msg = FakeMessage("/list")
         update = FakeUpdate(msg)
-        await handle_log(update, FakeContext(), conn=db_conn)
+        await handle_list(update, FakeContext(), conn=db_conn)
 
-        assert "— idea —" in msg._replied
-        assert "— soft_task —" in msg._replied
+        assert "Active (2):" in msg._replied
+        assert "💡 ideas" in msg._replied
+        assert "🌀 soft_tasks" in msg._replied
         assert "i1" in msg._replied
         assert "s1" in msg._replied
 
     @pytest.mark.asyncio
-    async def test_empty_returns_nothing_yet(self, db_conn):
-        from solo.commands import handle_log
+    async def test_excludes_done_rows(self, db_conn):
+        from solo.commands import handle_list
+        from solo.db import apply_classification, insert_entry, mark_done
 
-        msg = FakeMessage("/log")
+        a = insert_entry(db_conn, "active", 1, 1, "{}")
+        b = insert_entry(db_conn, "finished", 1, 2, "{}")
+        apply_classification(db_conn, a, "idea", "active", "low")
+        apply_classification(db_conn, b, "idea", "finished", "low")
+        mark_done(db_conn, b)
+
+        msg = FakeMessage("/list")
         update = FakeUpdate(msg)
-        await handle_log(update, FakeContext(), conn=db_conn)
+        await handle_list(update, FakeContext(), conn=db_conn)
 
+        assert "Active (1):" in msg._replied
+        assert "active" in msg._replied
+        assert "finished" not in msg._replied
+
+    @pytest.mark.asyncio
+    async def test_empty_returns_nothing_active(self, db_conn):
+        from solo.commands import handle_list
+
+        msg = FakeMessage("/list")
+        update = FakeUpdate(msg)
+        await handle_list(update, FakeContext(), conn=db_conn)
+        assert msg._replied == "nothing active"
+
+    @pytest.mark.asyncio
+    async def test_rejects_disallowed_chat(self, db_conn):
+        from solo.commands import handle_list
+
+        msg = FakeMessage("/list", chat_id=666)
+        update = FakeUpdate(msg)
+        await handle_list(update, FakeContext(), conn=db_conn, allowed_chats={123})
+        assert msg._replied is None
+
+
+class TestHandleAll:
+    @pytest.mark.asyncio
+    async def test_includes_done_rows(self, db_conn):
+        from solo.commands import handle_all
+        from solo.db import apply_classification, insert_entry, mark_done
+
+        a = insert_entry(db_conn, "active idea", 1, 1, "{}")
+        b = insert_entry(db_conn, "done idea", 1, 2, "{}")
+        apply_classification(db_conn, a, "idea", "active idea", "low")
+        apply_classification(db_conn, b, "idea", "done idea", "low")
+        mark_done(db_conn, b)
+
+        msg = FakeMessage("/all")
+        update = FakeUpdate(msg)
+        await handle_all(update, FakeContext(), conn=db_conn)
+
+        assert "All (2, 1 done):" in msg._replied
+        assert "active idea" in msg._replied
+        assert "done idea" in msg._replied
+        assert "✅" in msg._replied
+
+    @pytest.mark.asyncio
+    async def test_empty_returns_nothing_yet(self, db_conn):
+        from solo.commands import handle_all
+
+        msg = FakeMessage("/all")
+        update = FakeUpdate(msg)
+        await handle_all(update, FakeContext(), conn=db_conn)
         assert msg._replied == "nothing yet"
 
     @pytest.mark.asyncio
     async def test_rejects_disallowed_chat(self, db_conn):
-        from solo.commands import handle_log
+        from solo.commands import handle_all
 
-        msg = FakeMessage("/log", chat_id=666)
+        msg = FakeMessage("/all", chat_id=666)
         update = FakeUpdate(msg)
-        await handle_log(update, FakeContext(), conn=db_conn, allowed_chats={123})
-
+        await handle_all(update, FakeContext(), conn=db_conn, allowed_chats={123})
         assert msg._replied is None
-
-    @pytest.mark.asyncio
-    async def test_handler_replies_fallback_on_db_failure(self, db_conn):
-        from solo.commands import handle_log
-
-        db_conn.close()
-        msg = FakeMessage("/log")
-        update = FakeUpdate(msg)
-        await handle_log(update, FakeContext(), conn=db_conn)
-        assert msg._replied == "sorry, /log failed — check logs"
-
-    def test_format_log_renders_short_date_suffix(self):
-        from solo.commands import format_log
-
-        rows = [
-            {
-                "kind": "idea",
-                "summary": "i1",
-                "raw_text": "i1",
-                "classified": 1,
-                "created_at": "2026-05-23T10:00:00.000Z",
-            }
-        ]
-        out = format_log(rows)
-        assert "i1 (05-23)" in out

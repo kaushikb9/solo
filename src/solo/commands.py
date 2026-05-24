@@ -1,6 +1,7 @@
-"""Telegram command handlers: /top3 and /log.
+"""Telegram command handlers and pure formatters.
 
-Pure formatters (format_top3, format_log) live alongside the handlers so
+Handlers: /top3, /list, /all, /drop, /done, /redo, /help.
+Pure formatters (format_top3, format_list, format_all) live alongside so
 the rendering logic is unit-testable without Telegram or DB fixtures.
 """
 
@@ -17,10 +18,10 @@ from solo.llm import DEFAULT_MODEL, SupportsStructured
 
 logger = logging.getLogger(__name__)
 
-_LOG_LIMIT = 20
-_KIND_ORDER = ("idea", "soft_task", "hard_task", "note")
+_LIST_LIMIT = 200
 _TOP3_FAILED = "sorry, /top3 failed — check logs"
-_LOG_FAILED = "sorry, /log failed — check logs"
+_LIST_FAILED = "sorry, /list failed — check logs"
+_ALL_FAILED = "sorry, /all failed — check logs"
 
 
 def _allowed(update: Update, allowed_chats: set[int] | None) -> bool:
@@ -214,7 +215,12 @@ async def handle_top3(
         await classify_pending(conn, llm, model=model)
         rows = db.fetch_classified(conn, kinds=["soft_task", "idea"])
         top = rank.top3(rows)
-        await update.message.reply_text(format_top3(top))
+        top_ids = {r["id"] for r in top}
+        aging = [
+            r for r in rows
+            if r["id"] not in top_ids and _is_stale(r["created_at"])
+        ]
+        await update.message.reply_text(format_top3(top, aging=aging))
     except Exception:
         logger.exception("/top3 failed for chat=%d", update.effective_chat.id)
         try:
@@ -223,7 +229,7 @@ async def handle_top3(
             logger.exception("/top3 fallback reply also failed")
 
 
-async def handle_log(
+async def handle_list(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
     *,
@@ -233,11 +239,35 @@ async def handle_log(
     if not _allowed(update, allowed_chats):
         return
     try:
-        rows = db.get_recent_entries(conn, limit=_LOG_LIMIT)
-        await update.message.reply_text(format_log(rows))
+        rows = db.fetch_active(conn, limit=_LIST_LIMIT)
+        await update.message.reply_text(format_list(rows))
     except Exception:
-        logger.exception("/log failed for chat=%d", update.effective_chat.id)
+        logger.exception("/list failed for chat=%d", update.effective_chat.id)
         try:
-            await update.message.reply_text(_LOG_FAILED)
+            await update.message.reply_text(_LIST_FAILED)
         except Exception:
-            logger.exception("/log fallback reply also failed")
+            logger.exception("/list fallback reply also failed")
+
+
+async def handle_all(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    conn: sqlite3.Connection,
+    allowed_chats: set[int] | None = None,
+) -> None:
+    if not _allowed(update, allowed_chats):
+        return
+    try:
+        cursor = conn.execute(
+            "SELECT * FROM entries ORDER BY created_at DESC, id DESC LIMIT ?",
+            (_LIST_LIMIT,),
+        )
+        rows = [dict(r) for r in cursor.fetchall()]
+        await update.message.reply_text(format_all(rows))
+    except Exception:
+        logger.exception("/all failed for chat=%d", update.effective_chat.id)
+        try:
+            await update.message.reply_text(_ALL_FAILED)
+        except Exception:
+            logger.exception("/all fallback reply also failed")
