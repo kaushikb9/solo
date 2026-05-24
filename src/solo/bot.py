@@ -63,7 +63,9 @@ async def handle_message(
 
 
 def main() -> None:
-    load_dotenv()
+    # Local dev loads .env.local; Railway has no dotfile and uses OS-injected env vars.
+    if Path(".env.local").exists():
+        load_dotenv(".env.local", override=False)
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     db_path = os.environ.get("SOLO_DB_PATH", "./data/solo.db")
     openrouter_key = os.environ["OPENROUTER_API_KEY"]
