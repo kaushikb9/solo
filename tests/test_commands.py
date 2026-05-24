@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -50,6 +51,62 @@ def db_conn(tmp_path):
     conn = get_connection(str(tmp_path / "test.db"))
     yield conn
     conn.close()
+
+
+class TestAge:
+    def test_just_now(self):
+        from solo.commands import _age
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        assert _age("2026-05-24T09:30:00.000Z", now=now) == "just now"
+
+    def test_days(self):
+        from solo.commands import _age
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        assert _age("2026-05-20T10:00:00.000Z", now=now) == "4d"
+
+    def test_just_under_two_weeks(self):
+        from solo.commands import _age
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        assert _age("2026-05-12T10:00:00.000Z", now=now) == "12d"
+
+    def test_weeks(self):
+        from solo.commands import _age
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        # 21 days = 3w
+        assert _age("2026-05-03T10:00:00.000Z", now=now) == "3w"
+
+    def test_months(self):
+        from solo.commands import _age
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        # 90 days = 3mo
+        assert _age("2026-02-23T10:00:00.000Z", now=now) == "3mo"
+
+
+class TestMarker:
+    def test_none_returns_ideation(self):
+        from solo.commands import _marker
+
+        assert _marker(None) == "💡"
+
+    def test_empty_string_returns_ideation(self):
+        from solo.commands import _marker
+
+        assert _marker("") == "💡"
+
+    def test_single_mention(self):
+        from solo.commands import _marker
+
+        assert _marker("alice") == "👥 @alice"
+
+    def test_multiple_mentions(self):
+        from solo.commands import _marker
+
+        assert _marker("alice,bob") == "👥 @alice @bob"
 
 
 class TestFormatTop3:

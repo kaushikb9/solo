@@ -6,6 +6,7 @@ the rendering logic is unit-testable without Telegram or DB fixtures.
 
 import logging
 import sqlite3
+from datetime import UTC, datetime
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -37,6 +38,29 @@ def _short_date(iso_ts: str | None) -> str:
     if not iso_ts or len(iso_ts) < 10:
         return ""
     return iso_ts[5:10]
+
+
+def _age(iso_ts: str, *, now: datetime | None = None) -> str:
+    """Render the age of an ISO timestamp as 'just now', 'Nd', 'Nw', or 'Nmo'."""
+    now = now or datetime.now(UTC)
+    # SQLite emits "2026-05-24T10:00:00.000Z"; fromisoformat needs +00:00.
+    created = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+    days = (now - created).days
+    if days <= 0:
+        return "just now"
+    if days < 14:
+        return f"{days}d"
+    if days < 60:
+        return f"{days // 7}w"
+    return f"{days // 30}mo"
+
+
+def _marker(mentions_csv: str | None) -> str:
+    """Render the entry marker: 👥 + names when mentions present, else 💡."""
+    if not mentions_csv:
+        return "💡"
+    names = [f"@{n}" for n in mentions_csv.split(",") if n]
+    return "👥 " + " ".join(names)
 
 
 def format_top3(items: list[dict]) -> str:
