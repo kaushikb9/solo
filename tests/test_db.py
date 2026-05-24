@@ -37,7 +37,19 @@ class TestSchema:
             "summary",
             "priority",
             "classification_attempts",
+            "done",
+            "mentions",
         }
+
+    def test_done_and_mentions_have_correct_defaults(self, conn):
+        from solo.db import insert_entry
+
+        row_id = insert_entry(conn, "plain thought", 1, 1, "{}")
+        row = conn.execute(
+            "SELECT done, mentions FROM entries WHERE id = ?", (row_id,)
+        ).fetchone()
+        assert row[0] == 0  # done defaults to 0
+        assert row[1] is None  # mentions NULL when no @-names
 
     def test_new_classification_columns_have_correct_defaults(self, conn):
         from solo.db import insert_entry
@@ -83,11 +95,22 @@ class TestMigration:
 
         conn = get_connection(str(path))
         cols = {row[1] for row in conn.execute("PRAGMA table_info(entries)").fetchall()}
-        assert {"kind", "summary", "priority", "classification_attempts"}.issubset(cols)
+        assert {
+            "kind",
+            "summary",
+            "priority",
+            "classification_attempts",
+            "done",
+            "mentions",
+        }.issubset(cols)
 
-        row = conn.execute("SELECT raw_text, classification_attempts FROM entries").fetchone()
+        row = conn.execute(
+            "SELECT raw_text, classification_attempts, done, mentions FROM entries"
+        ).fetchone()
         assert row[0] == "legacy thought"
         assert row[1] == 0
+        assert row[2] == 0
+        assert row[3] is None
         conn.close()
 
     def test_migration_is_idempotent(self, tmp_path):

@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS entries (
     kind TEXT,
     summary TEXT,
     priority TEXT,
-    classification_attempts INTEGER NOT NULL DEFAULT 0
+    classification_attempts INTEGER NOT NULL DEFAULT 0,
+    done INTEGER NOT NULL DEFAULT 0,
+    mentions TEXT
 );
 """
 
@@ -27,6 +29,8 @@ def _migrate_entries(conn: sqlite3.Connection) -> None:
             "classification_attempts",
             "ALTER TABLE entries ADD COLUMN classification_attempts INTEGER NOT NULL DEFAULT 0",
         ),
+        ("done", "ALTER TABLE entries ADD COLUMN done INTEGER NOT NULL DEFAULT 0"),
+        ("mentions", "ALTER TABLE entries ADD COLUMN mentions TEXT"),
     )
     for col, ddl in additions:
         if col not in cols:
