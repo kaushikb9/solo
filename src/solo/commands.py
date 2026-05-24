@@ -271,3 +271,101 @@ async def handle_all(
             await update.message.reply_text(_ALL_FAILED)
         except Exception:
             logger.exception("/all fallback reply also failed")
+
+
+def _parse_int_args(args: list[str]) -> tuple[list[int], list[str]]:
+    """Returns (valid_ids, skipped_args)."""
+    valid: list[int] = []
+    skipped: list[str] = []
+    for a in args:
+        try:
+            valid.append(int(a))
+        except ValueError:
+            skipped.append(a)
+    return valid, skipped
+
+
+async def handle_drop(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    conn: sqlite3.Connection,
+    allowed_chats: set[int] | None = None,
+) -> None:
+    if not _allowed(update, allowed_chats):
+        return
+    try:
+        ids, skipped = _parse_int_args(getattr(context, "args", None) or [])
+        if skipped:
+            logger.warning("/drop ignored non-int args: %s", skipped)
+        if not ids:
+            await update.message.reply_text("usage: /drop <id> [<id>...]")
+            return
+
+        dropped: list[int] = []
+        not_found: list[int] = []
+        for entry_id in ids:
+            if db.delete_entry(conn, entry_id):
+                dropped.append(entry_id)
+            else:
+                not_found.append(entry_id)
+
+        if dropped:
+            await update.message.reply_text(
+                f"dropped {len(dropped)}: " + ", ".join(str(i) for i in dropped)
+            )
+        else:
+            await update.message.reply_text(
+                "nothing dropped (ids not found: "
+                + ", ".join(str(i) for i in not_found)
+                + ")"
+            )
+    except Exception:
+        logger.exception("/drop failed for chat=%d", update.effective_chat.id)
+        try:
+            await update.message.reply_text("sorry, /drop failed — check logs")
+        except Exception:
+            logger.exception("/drop fallback reply also failed")
+
+
+async def handle_done(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    conn: sqlite3.Connection,
+    allowed_chats: set[int] | None = None,
+) -> None:
+    if not _allowed(update, allowed_chats):
+        return
+    try:
+        ids, skipped = _parse_int_args(getattr(context, "args", None) or [])
+        if skipped:
+            logger.warning("/done ignored non-int args: %s", skipped)
+        if not ids:
+            await update.message.reply_text("usage: /done <id> [<id>...]")
+            return
+
+        marked: list[int] = []
+        not_found: list[int] = []
+        for entry_id in ids:
+            if db.mark_done(conn, entry_id):
+                marked.append(entry_id)
+            else:
+                not_found.append(entry_id)
+
+        if marked:
+            await update.message.reply_text(
+                f"done {len(marked)}: " + ", ".join(str(i) for i in marked)
+            )
+        else:
+            await update.message.reply_text(
+                "nothing changed (ids not found: "
+                + ", ".join(str(i) for i in not_found)
+                + ")"
+            )
+    except Exception:
+        logger.exception("/done failed for chat=%d", update.effective_chat.id)
+        try:
+            await update.message.reply_text("sorry, /done failed — check logs")
+        except Exception:
+            logger.exception("/done fallback reply also failed")

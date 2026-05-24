@@ -577,3 +577,93 @@ class TestHandleAll:
         update = FakeUpdate(msg)
         await handle_all(update, FakeContext(), conn=db_conn, allowed_chats={123})
         assert msg._replied is None
+
+
+class FakeContextWithArgs:
+    def __init__(self, args):
+        self.args = list(args)
+
+
+class TestHandleDrop:
+    @pytest.mark.asyncio
+    async def test_deletes_one_id(self, db_conn):
+        from solo.commands import handle_drop
+        from solo.db import insert_entry
+
+        rid = insert_entry(db_conn, "kill me", 1, 1, "{}")
+        msg = FakeMessage(f"/drop {rid}")
+        update = FakeUpdate(msg)
+        await handle_drop(update, FakeContextWithArgs([str(rid)]), conn=db_conn)
+
+        assert msg._replied == f"dropped 1: {rid}"
+        row = db_conn.execute("SELECT id FROM entries WHERE id=?", (rid,)).fetchone()
+        assert row is None
+
+    @pytest.mark.asyncio
+    async def test_deletes_multiple_ids(self, db_conn):
+        from solo.commands import handle_drop
+        from solo.db import insert_entry
+
+        a = insert_entry(db_conn, "a", 1, 1, "{}")
+        b = insert_entry(db_conn, "b", 1, 2, "{}")
+        msg = FakeMessage(f"/drop {a} {b}")
+        update = FakeUpdate(msg)
+        await handle_drop(update, FakeContextWithArgs([str(a), str(b)]), conn=db_conn)
+
+        assert msg._replied == f"dropped 2: {a}, {b}"
+
+    @pytest.mark.asyncio
+    async def test_no_args_returns_usage(self, db_conn):
+        from solo.commands import handle_drop
+
+        msg = FakeMessage("/drop")
+        update = FakeUpdate(msg)
+        await handle_drop(update, FakeContextWithArgs([]), conn=db_conn)
+        assert msg._replied == "usage: /drop <id> [<id>...]"
+
+    @pytest.mark.asyncio
+    async def test_unknown_id_reports_no_op(self, db_conn):
+        from solo.commands import handle_drop
+
+        msg = FakeMessage("/drop 99999")
+        update = FakeUpdate(msg)
+        await handle_drop(update, FakeContextWithArgs(["99999"]), conn=db_conn)
+        assert msg._replied == "nothing dropped (ids not found: 99999)"
+
+    @pytest.mark.asyncio
+    async def test_non_int_args_are_skipped(self, db_conn):
+        from solo.commands import handle_drop
+        from solo.db import insert_entry
+
+        rid = insert_entry(db_conn, "x", 1, 1, "{}")
+        msg = FakeMessage(f"/drop {rid} bogus")
+        update = FakeUpdate(msg)
+        await handle_drop(
+            update, FakeContextWithArgs([str(rid), "bogus"]), conn=db_conn
+        )
+        assert msg._replied == f"dropped 1: {rid}"
+
+
+class TestHandleDone:
+    @pytest.mark.asyncio
+    async def test_marks_one_id_done(self, db_conn):
+        from solo.commands import handle_done
+        from solo.db import insert_entry
+
+        rid = insert_entry(db_conn, "x", 1, 1, "{}")
+        msg = FakeMessage(f"/done {rid}")
+        update = FakeUpdate(msg)
+        await handle_done(update, FakeContextWithArgs([str(rid)]), conn=db_conn)
+
+        assert msg._replied == f"done 1: {rid}"
+        d = db_conn.execute("SELECT done FROM entries WHERE id=?", (rid,)).fetchone()[0]
+        assert d == 1
+
+    @pytest.mark.asyncio
+    async def test_no_args_returns_usage(self, db_conn):
+        from solo.commands import handle_done
+
+        msg = FakeMessage("/done")
+        update = FakeUpdate(msg)
+        await handle_done(update, FakeContextWithArgs([]), conn=db_conn)
+        assert msg._replied == "usage: /done <id> [<id>...]"
