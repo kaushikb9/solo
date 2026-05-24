@@ -123,12 +123,12 @@ class TestFormatTop3:
         return base
 
     def test_empty_returns_nothing_to_rank_yet(self):
-        from solo.commands import format_top3
+        from solo.commands import format_top
 
-        assert format_top3([], aging=[]) == "nothing to rank yet"
+        assert format_top([], aging=[]) == "nothing to rank yet"
 
     def test_renders_three_terse_items_with_ideation_marker(self):
-        from solo.commands import format_top3
+        from solo.commands import format_top
 
         now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
         top = [
@@ -148,7 +148,7 @@ class TestFormatTop3:
                 created_at="2026-05-09T10:00:00.000Z",
             ),
         ]
-        out = format_top3(top, aging=[], now=now)
+        out = format_top(top, aging=[], now=now)
         assert "Top 3 for today:" in out
         assert "1️⃣ 💡 positioning for new feature (1d)" in out
         assert "2️⃣ 💡 embeddings for dedup (4d)" in out
@@ -156,15 +156,15 @@ class TestFormatTop3:
         assert "3️⃣ 💡 prompt caching paper (2w) ⚠️" in out
 
     def test_renders_mention_marker(self):
-        from solo.commands import format_top3
+        from solo.commands import format_top
 
         now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
         top = [self._row(mentions="ashish", summary="1BHK reimbursement")]
-        out = format_top3(top, aging=[], now=now)
+        out = format_top(top, aging=[], now=now)
         assert "1️⃣ 👥 @ashish 1BHK reimbursement" in out
 
     def test_includes_aging_section(self):
-        from solo.commands import format_top3
+        from solo.commands import format_top
 
         now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
         top = [self._row(id=1, summary="t1", created_at="2026-05-23T10:00:00.000Z")]
@@ -181,13 +181,13 @@ class TestFormatTop3:
                 created_at="2026-04-15T10:00:00.000Z",
             ),
         ]
-        out = format_top3(top, aging=aging, now=now)
+        out = format_top(top, aging=aging, now=now)
         assert "⚠️ Also aging (>14d, not in top 3):" in out
         assert "💡 mentoring plan (3w)" in out
         assert "👥 @john team morale" in out
 
     def test_aging_section_caps_at_five_with_overflow_note(self):
-        from solo.commands import format_top3
+        from solo.commands import format_top
 
         now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
         top = [self._row(id=1, summary="t1", created_at="2026-05-23T10:00:00.000Z")]
@@ -199,7 +199,7 @@ class TestFormatTop3:
             )
             for i in range(8)
         ]
-        out = format_top3(top, aging=aging, now=now)
+        out = format_top(top, aging=aging, now=now)
         # First 5 listed, then "(+3 more)"
         assert "(+3 more)" in out
 
@@ -385,11 +385,11 @@ class TestFormatAll:
         assert "✅ 2" in ideas_section
 
 
-class TestHandleTop3:
+class TestHandleTop:
     @pytest.mark.asyncio
     async def test_drains_backlog_then_replies(self, db_conn):
         from solo.classifier import ClassifyResult
-        from solo.commands import handle_top3
+        from solo.commands import handle_top
         from solo.db import insert_entry
 
         insert_entry(db_conn, "explore embeddings", 1, 1, "{}")
@@ -401,9 +401,9 @@ class TestHandleTop3:
             ]
         )
 
-        msg = FakeMessage("/top3")
+        msg = FakeMessage("/top")
         update = FakeUpdate(msg)
-        await handle_top3(update, FakeContext(), conn=db_conn, llm=llm)
+        await handle_top(update, FakeContext(), conn=db_conn, llm=llm)
 
         assert msg._replied is not None
         assert "Top 3 for today:" in msg._replied
@@ -413,7 +413,7 @@ class TestHandleTop3:
 
     @pytest.mark.asyncio
     async def test_filters_to_soft_task_and_idea(self, db_conn):
-        from solo.commands import handle_top3
+        from solo.commands import handle_top
         from solo.db import apply_classification, insert_entry
 
         a = insert_entry(db_conn, "soft", 1, 1, "{}")
@@ -425,9 +425,9 @@ class TestHandleTop3:
         apply_classification(db_conn, c, "hard_task", "hard", "high")
         apply_classification(db_conn, d, "note", "note", "high")
 
-        msg = FakeMessage("/top3")
+        msg = FakeMessage("/top")
         update = FakeUpdate(msg)
-        await handle_top3(update, FakeContext(), conn=db_conn, llm=FakeLLM())
+        await handle_top(update, FakeContext(), conn=db_conn, llm=FakeLLM())
 
         assert "soft" in msg._replied
         assert "idea" in msg._replied
@@ -436,21 +436,21 @@ class TestHandleTop3:
 
     @pytest.mark.asyncio
     async def test_empty_pool_returns_nothing_message(self, db_conn):
-        from solo.commands import handle_top3
+        from solo.commands import handle_top
 
-        msg = FakeMessage("/top3")
+        msg = FakeMessage("/top")
         update = FakeUpdate(msg)
-        await handle_top3(update, FakeContext(), conn=db_conn, llm=FakeLLM())
+        await handle_top(update, FakeContext(), conn=db_conn, llm=FakeLLM())
 
         assert msg._replied == "nothing to rank yet"
 
     @pytest.mark.asyncio
     async def test_rejects_disallowed_chat(self, db_conn):
-        from solo.commands import handle_top3
+        from solo.commands import handle_top
 
-        msg = FakeMessage("/top3", chat_id=666)
+        msg = FakeMessage("/top", chat_id=666)
         update = FakeUpdate(msg)
-        await handle_top3(
+        await handle_top(
             update,
             FakeContext(),
             conn=db_conn,
@@ -462,30 +462,30 @@ class TestHandleTop3:
 
     @pytest.mark.asyncio
     async def test_handler_replies_fallback_on_llm_failure(self, db_conn):
-        from solo.commands import handle_top3
+        from solo.commands import handle_top
         from solo.db import insert_entry
 
         insert_entry(db_conn, "broken", 1, 1, "{}")
         llm = FakeLLM(errors=[RuntimeError("boom")])
 
-        msg = FakeMessage("/top3")
+        msg = FakeMessage("/top")
         update = FakeUpdate(msg)
-        await handle_top3(update, FakeContext(), conn=db_conn, llm=llm)
+        await handle_top(update, FakeContext(), conn=db_conn, llm=llm)
         # classify_pending swallows its own errors; the user still sees the
         # "nothing to rank yet" path because no rows became classified.
         assert msg._replied == "nothing to rank yet"
 
     @pytest.mark.asyncio
     async def test_handler_replies_fallback_on_db_failure(self, db_conn):
-        from solo.commands import handle_top3
+        from solo.commands import handle_top
 
         db_conn.close()  # force a DB error inside fetch_classified
 
-        msg = FakeMessage("/top3")
+        msg = FakeMessage("/top")
         update = FakeUpdate(msg)
-        await handle_top3(update, FakeContext(), conn=db_conn, llm=FakeLLM())
+        await handle_top(update, FakeContext(), conn=db_conn, llm=FakeLLM())
         # Handler caught the DB error and sent the fallback message.
-        assert msg._replied == "sorry, /top3 failed — check logs"
+        assert msg._replied == "sorry, /top failed — check logs"
 
 
 class TestHandleList:
@@ -688,7 +688,7 @@ class TestHandleRedo:
         update = FakeUpdate(msg)
         await handle_redo(update, FakeContextWithArgs([str(rid)]), conn=db_conn)
 
-        assert msg._replied == f"requeued {rid} for next /top3"
+        assert msg._replied == f"requeued {rid} for next /top"
         row = db_conn.execute(
             "SELECT classified, kind, summary, priority FROM entries WHERE id=?",
             (rid,),
@@ -736,7 +736,7 @@ class TestHandleHelp:
         await handle_help(update, FakeContext())
 
         assert msg._replied is not None
-        for cmd in ("/top3", "/list", "/all", "/drop", "/done", "/redo", "/help"):
+        for cmd in ("/top", "/list", "/all", "/drop", "/done", "/redo", "/help"):
             assert cmd in msg._replied
 
     @pytest.mark.asyncio

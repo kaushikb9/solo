@@ -20,7 +20,7 @@ from solo.commands import (
     handle_help,
     handle_list,
     handle_redo,
-    handle_top3,
+    handle_top,
 )
 from solo.db import get_connection, insert_entry
 from solo.llm import LLMClient
@@ -83,8 +83,8 @@ def main() -> None:
     async def _capture(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await handle_message(update, ctx, conn=conn, allowed_chats=allowed_chats)
 
-    async def _top3(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-        await handle_top3(
+    async def _top(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_top(
             update, ctx, conn=conn, llm=llm, model=model,
             allowed_chats=allowed_chats,
         )
@@ -108,7 +108,7 @@ def main() -> None:
         await handle_help(update, ctx, allowed_chats=allowed_chats)
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _capture))
-    app.add_handler(CommandHandler("top3", _top3))
+    app.add_handler(CommandHandler("top", _top))
     app.add_handler(CommandHandler("list", _list))
     app.add_handler(CommandHandler("all", _all))
     app.add_handler(CommandHandler("drop", _drop))

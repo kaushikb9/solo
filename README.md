@@ -1,12 +1,12 @@
 # Solo
 
-Personal thinking companion. Captures raw thoughts via Telegram, surfaces what matters via `/top3`. Not a task manager.
+Personal thinking companion. Captures raw thoughts via Telegram, surfaces what matters via `/top`. Not a task manager.
 
 This is also a **learn-by-building** project for getting fluent in AI engineering and agentic systems. Each implementation step is documented in `docs/concepts/` so the learning compounds.
 
 ## Status
 
-**V0 complete.** Capture (`bot.py`), lazy classifier (`classifier.py`), `/top3` and `/log` commands, `llm_calls` trace table, prompts-as-files, classifier eval harness (`scripts/eval.py`). V1 (`/expand` — first hand-rolled agent loop) is next.
+**V0 complete.** Capture (`bot.py`), lazy classifier (`classifier.py`), `/top` and `/log` commands, `llm_calls` trace table, prompts-as-files, classifier eval harness (`scripts/eval.py`). V1 (`/expand` — first hand-rolled agent loop) is next.
 
 ## Read first
 
@@ -57,4 +57,4 @@ The author works across multiple setups: Claude Code (Opus 4.7) with the [superp
 
 ## V0 scope
 
-Capture (Telegram) → lazy classifier → `/top3` and `/log`. Plus the agent-engineering hygiene that compounds: structured trace, prompts as files, classifier eval, concept docs.
+Capture (Telegram) → lazy classifier → `/top` and `/log`. Plus the agent-engineering hygiene that compounds: structured trace, prompts as files, classifier eval, concept docs.

@@ -1,4 +1,4 @@
-"""Deterministic ranking for /top3.
+"""Deterministic ranking for /top.
 
 Pure functions only. No DB, no LLM. Sort key is (priority desc, created_at desc,
 id desc) — the `id` tertiary key makes ties deterministic even when two entries
@@ -8,7 +8,7 @@ share a millisecond-precision `created_at`.
 _PRIORITY_RANK = {"high": 3, "medium": 2, "low": 1}
 
 
-def top3(entries: list[dict]) -> list[dict]:
+def top(entries: list[dict]) -> list[dict]:
     """Return the 3 highest-priority, most-recent entries.
 
     Unknown priorities sort below known ones. Ties on (priority, created_at)

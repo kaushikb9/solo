@@ -1,7 +1,7 @@
 """Extract @-mentions from raw entry text.
 
 Pure module. Used at insert_entry time to populate the `mentions` column,
-which the /list and /top3 formatters render as a 👥 marker.
+which the /list and /top formatters render as a 👥 marker.
 """
 
 import re

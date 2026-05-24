@@ -10,16 +10,16 @@ Living doc. Update as part of any non-trivial change so the next agent (possibly
 
 ## Current state
 
-**V0.1 is complete.** V0 (capture → classifier → /top3 + /log → trace table → prompts-as-files → eval harness) shipped over slices 1–5. Slice 6 added the admin surface and visual refresh kb wanted after a few days of real use.
+**V0.1 is complete.** V0 (capture → classifier → /top + /log → trace table → prompts-as-files → eval harness) shipped over slices 1–5. Slice 6 added the admin surface and visual refresh kb wanted after a few days of real use.
 
 Commands available:
 
-- `/top3` — top 3 from `soft_task` + `idea`, terse format with emoji, age, and aging-items section.
+- `/top` — top items from `soft_task` + `idea` (usually 3), terse format with emoji, age, and aging-items section.
 - `/list` — active items only, grouped by kind, with IDs.
 - `/all` — everything including done items (✅ marker).
 - `/drop <id> [<id>...]` — hard delete.
 - `/done <id> [<id>...]` — soft mark complete; stays in `/all`.
-- `/redo <id>` — reset classification fields; next `/top3` re-classifies.
+- `/redo <id>` — reset classification fields; next `/top` re-classifies.
 - `/help` — list of commands.
 
 Schema additions in slice 6: `done` (boolean, default 0) and `mentions` (CSV from `@\w+` regex at insert time).
@@ -27,7 +27,7 @@ Schema additions in slice 6: `done` (boolean, default 0) and `mentions` (CSV fro
 Slice 6 manifest:
 - `src/solo/mentions.py` — pure `extract(raw_text)`.
 - `src/solo/db.py` — added `mark_done`, `delete_entry`, `reset_for_reclassification`, `fetch_active`; `fetch_classified` now filters `done=0`; `insert_entry` populates `mentions`; migration adds the two new columns idempotently.
-- `src/solo/commands.py` — rewritten formatters (`format_top3`, `format_list`, `format_all`) with `_age` and `_marker` helpers; new handlers for `/list`, `/all`, `/drop`, `/done`, `/redo`, `/help`; `handle_top3` now surfaces an aging-items section.
+- `src/solo/commands.py` — rewritten formatters (`format_top`, `format_list`, `format_all`) with `_age` and `_marker` helpers; new handlers for `/list`, `/all`, `/drop`, `/done`, `/redo`, `/help`; `handle_top` now surfaces an aging-items section.
 - `src/solo/bot.py` — registers all new `CommandHandler`s; `/log` removed.
 - `docs/decisions/0007-drop-is-hard-delete.md` — ADR-0007.
 - `docs/decisions/0008-mention-extraction-is-regex.md` — ADR-0008.
@@ -43,7 +43,7 @@ Pending manual verification:
 1. ~~Telegram capture → SQLite~~ — done (slice 1)
 2. ~~`LLMClient` + `llm_calls` trace table~~ — done (slice 2)
 3. ~~Lazy classifier~~ — done (slice 3)
-4. ~~`/top3` + `/log` commands~~ — done (slice 4)
+4. ~~`/top` + `/log` commands~~ — done (slice 4)
 5. ~~Classifier eval harness~~ — done (slice 5)
 6. ~~Admin surface (/list, /all, /drop, /done, /redo, /help) + visual refresh~~ — done (slice 6)
 7. **V1 — `/expand`**: the first hand-rolled agent loop, per `docs/architecture.md` §1/§3. Sub-slices likely: `agent_runs` + `agent_steps` tables, the loop itself, the `expand` prompt, the Telegram surface, evals for `expand` quality. Earns its own brainstorm + spec + plan cycle.

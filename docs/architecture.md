@@ -13,7 +13,7 @@ Reject the binary of "agent framework" vs "minimal pipeline." 90% of this system
 | Capture | Telegram bot writes raw entries to SQLite (or Turso) | No |
 | Classify, summarize | Single-shot LLM call, structured output | No |
 | Dedup | Embedding similarity + threshold | No |
-| `top3` ranking | Heuristic + single LLM scoring pass | No |
+| `top` ranking | Heuristic + single LLM scoring pass | No |
 | `log` | Direct SQL query, grouped output | No |
 | `commit` to Reminders | Deterministic transition (Mac-side, see §8) | No |
 | **`expand`** (interactive thinking) | Hand-rolled tool-use loop (~100 lines) | **Yes** |
@@ -113,13 +113,13 @@ This also weakens Railway's volume advantage and makes Cloudflare Workers a more
 ## 9. V0 scope (smallest viable loop)
 
 1. SQLite schema + Telegram bot writing raw entries on every message
-2. Lazy classifier — runs on unclassified rows when `/top3` is invoked
-3. `/top3` and `/log` commands inside Telegram
+2. Lazy classifier — runs on unclassified rows when `/top` is invoked
+3. `/top` and `/log` commands inside Telegram
 4. Structured trace table for every LLM call
 5. Prompts as files in `src/solo/prompts/`
 6. Eval harness for the classifier (`evals/classify.jsonl` + `scripts/eval.py`)
 
-Nothing else. No `expand`, `review`, or `commit`. If `/top3` isn't trustworthy after a week, the rest doesn't matter.
+Nothing else. No `expand`, `review`, or `commit`. If `/top` isn't trustworthy after a week, the rest doesn't matter.
 
 ## 10. File structure
 
@@ -133,8 +133,8 @@ solo/
     db.py               # SQLite/libSQL schema + queries
     llm.py              # LLMClient (OpenRouter)
     classifier.py       # Classification + summarization (single-shot)
-    rank.py             # top3 ranking logic
-    commands.py         # /top3, /log handlers
+    rank.py             # top ranking logic
+    commands.py         # /top, /log handlers
     trace.py            # llm_calls trace table writes
     prompts/
       classifier.md

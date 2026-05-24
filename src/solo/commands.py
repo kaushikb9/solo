@@ -1,7 +1,7 @@
 """Telegram command handlers and pure formatters.
 
-Handlers: /top3, /list, /all, /drop, /done, /redo, /help.
-Pure formatters (format_top3, format_list, format_all) live alongside so
+Handlers: /top, /list, /all, /drop, /done, /redo, /help.
+Pure formatters (format_top, format_list, format_all) live alongside so
 the rendering logic is unit-testable without Telegram or DB fixtures.
 """
 
@@ -19,7 +19,7 @@ from solo.llm import DEFAULT_MODEL, SupportsStructured
 logger = logging.getLogger(__name__)
 
 _LIST_LIMIT = 200
-_TOP3_FAILED = "sorry, /top3 failed — check logs"
+_TOP_FAILED = "sorry, /top failed — check logs"
 _LIST_FAILED = "sorry, /list failed — check logs"
 _ALL_FAILED = "sorry, /all failed — check logs"
 
@@ -68,7 +68,7 @@ def _is_stale(iso_ts: str, now: datetime | None = None) -> bool:
     return (now - created).days > _STALE_AGE_DAYS
 
 
-def format_top3(
+def format_top(
     top: list[dict],
     *,
     aging: list[dict],
@@ -198,7 +198,7 @@ def format_all(rows: list[dict], *, now: datetime | None = None) -> str:
     return "\n".join(out)
 
 
-async def handle_top3(
+async def handle_top(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
     *,
@@ -212,16 +212,16 @@ async def handle_top3(
     try:
         await classify_pending(conn, llm, model=model)
         rows = db.fetch_classified(conn, kinds=["soft_task", "idea"])
-        top = rank.top3(rows)
+        top = rank.top(rows)
         top_ids = {r["id"] for r in top}
         aging = [r for r in rows if r["id"] not in top_ids and _is_stale(r["created_at"])]
-        await update.message.reply_text(format_top3(top, aging=aging))
+        await update.message.reply_text(format_top(top, aging=aging))
     except Exception:
-        logger.exception("/top3 failed for chat=%d", update.effective_chat.id)
+        logger.exception("/top failed for chat=%d", update.effective_chat.id)
         try:
-            await update.message.reply_text(_TOP3_FAILED)
+            await update.message.reply_text(_TOP_FAILED)
         except Exception:
-            logger.exception("/top3 fallback reply also failed")
+            logger.exception("/top fallback reply also failed")
 
 
 async def handle_list(
@@ -379,7 +379,7 @@ async def handle_redo(
             return
 
         if db.reset_for_reclassification(conn, entry_id):
-            await update.message.reply_text(f"requeued {entry_id} for next /top3")
+            await update.message.reply_text(f"requeued {entry_id} for next /top")
         else:
             await update.message.reply_text(f"id {entry_id} not found")
     except Exception:
@@ -392,7 +392,7 @@ async def handle_redo(
 
 _HELP_TEXT = (
     "Commands:\n"
-    "/top3  — your top 3 right now\n"
+    "/top  — your top items right now (usually 3)\n"
     "/list  — all active items, with IDs\n"
     "/all   — everything (active + done)\n"
     "/drop <id> [<id>...]  — hard delete\n"

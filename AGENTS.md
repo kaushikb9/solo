@@ -6,7 +6,7 @@ Canonical agent guidance for solo. Applies to **any** agent working on this repo
 
 ## Project context
 
-Solo is a personal thinking companion built by kb. Telegram captures raw thoughts → SQLite stores them → an LLM classifier runs lazily when `/top3` is invoked → ranked priorities are returned. **It is not a task manager.** 90% deterministic pipeline; the agent loop only appears in V1 (`expand`, `review`).
+Solo is a personal thinking companion built by kb. Telegram captures raw thoughts → SQLite stores them → an LLM classifier runs lazily when `/top` is invoked → ranked priorities are returned. **It is not a task manager.** 90% deterministic pipeline; the agent loop only appears in V1 (`expand`, `review`).
 
 This project is also a **learning vehicle** for AI engineering. Every implementation step that introduces a new AI concept must produce a primer in `docs/concepts/`. Every architectural decision made during implementation gets an ADR in `docs/decisions/`. The goal is compounding learnings.
 
@@ -54,8 +54,8 @@ Project conventions in this file are **invariant across tools**. Tool-specific s
 ## V0 scope (only)
 
 1. Telegram bot writes raw entries to SQLite
-2. Lazy classifier when `/top3` is invoked
-3. `/top3` and `/log` commands
+2. Lazy classifier when `/top` is invoked
+3. `/top` and `/log` commands
 4. `llm_calls` trace table written on every LLM call
 5. Prompts as files in `src/solo/prompts/`
 6. Classifier eval harness (`evals/classify.jsonl` + `scripts/eval.py`)

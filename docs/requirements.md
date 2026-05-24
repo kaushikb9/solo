@@ -101,7 +101,7 @@ Default:
 - no interruptions
 Allowed interaction:
 - user-triggered commands:
-  - `top3`
+  - `top`
   - `log`
   - `expand`
   - `review`
@@ -161,7 +161,7 @@ Input → Inbox → Async Processing → Structured Store → Query Layer
 ---
 ### 8.4 Query Layer
 Commands:
-- `top3` → prioritization
+- `top` → prioritization
 - `log` → structured memory
 - `expand` → thinking mode
 - `review` → pattern visibility
@@ -221,7 +221,7 @@ This project is also a learning vehicle.
 Only build:
 1. Capture → Telegram → DB
 2. Classification + storage
-3. `top3`
+3. `top`
 4. `log`
 Optional:
 5. `expand`
@@ -229,7 +229,7 @@ Optional:
 ## 14. Success Criteria
 Within 1 week:
 - You consistently capture thoughts
-- `top3` surfaces meaningful focus areas
+- `top` surfaces meaningful focus areas
 - No notification fatigue
 - System feels:
   - simple
