@@ -109,6 +109,56 @@ def format_top3(
     return "\n".join(lines)
 
 
+_LIST_KIND_ORDER = (
+    ("idea", "💡 ideas"),
+    ("soft_task", "🌀 soft_tasks"),
+    ("hard_task", "🔨 hard_tasks"),
+    ("note", "📝 notes"),
+)
+_UNCLASSIFIED_HEADER = "⏳ unclassified"
+
+
+def _format_list_row(row: dict, *, now: datetime | None) -> str:
+    age = _age(row["created_at"], now=now)
+    stale = " ⚠️" if _is_stale(row["created_at"], now=now) else ""
+    if row.get("classified"):
+        marker = _marker(row.get("mentions"))
+        summary = row["summary"]
+        priority = row.get("priority") or ""
+        return f"  · {row['id']} {marker} {summary} ({age}) [{priority}]{stale}"
+    # Unclassified: render raw_text, no marker, no priority
+    return f"  · {row['id']} {row['raw_text']} ({age}){stale}"
+
+
+def format_list(rows: list[dict], *, now: datetime | None = None) -> str:
+    if not rows:
+        return "nothing active"
+
+    buckets: dict[str | None, list[dict]] = {k: [] for k, _ in _LIST_KIND_ORDER}
+    buckets[None] = []
+    for row in rows:
+        if row.get("classified") and row.get("kind") in buckets:
+            buckets[row["kind"]].append(row)
+        else:
+            buckets[None].append(row)
+
+    out: list[str] = [f"Active ({len(rows)}):"]
+    for kind, header in _LIST_KIND_ORDER:
+        items = buckets[kind]
+        if not items:
+            continue
+        out.append("")
+        out.append(header)
+        for r in items:
+            out.append(_format_list_row(r, now=now))
+    if buckets[None]:
+        out.append("")
+        out.append(_UNCLASSIFIED_HEADER)
+        for r in buckets[None]:
+            out.append(_format_list_row(r, now=now))
+    return "\n".join(out)
+
+
 def format_log(rows: list[dict]) -> str:
     if not rows:
         return "nothing yet"

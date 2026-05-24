@@ -270,6 +270,115 @@ class TestFormatLog:
         assert format_log([]) == "nothing yet"
 
 
+class TestFormatList:
+    def _row(self, **overrides):
+        base = {
+            "id": 1,
+            "classified": 1,
+            "kind": "idea",
+            "priority": "med",
+            "summary": "embeddings for dedup",
+            "raw_text": "embeddings for dedup",
+            "mentions": None,
+            "created_at": "2026-05-23T10:00:00.000Z",
+        }
+        base.update(overrides)
+        return base
+
+    def test_empty_returns_nothing_active(self):
+        from solo.commands import format_list
+
+        assert format_list([]) == "nothing active"
+
+    def test_groups_sections_in_fixed_order(self):
+        from solo.commands import format_list
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [
+            self._row(id=1, kind="note", summary="n1"),
+            self._row(id=2, kind="idea", summary="i1"),
+            self._row(id=3, kind="hard_task", summary="h1"),
+            self._row(id=4, kind="soft_task", summary="s1"),
+        ]
+        out = format_list(rows, now=now)
+        ideas_pos = out.find("💡 ideas")
+        soft_pos = out.find("🌀 soft_tasks")
+        hard_pos = out.find("🔨 hard_tasks")
+        note_pos = out.find("📝 notes")
+        assert ideas_pos < soft_pos < hard_pos < note_pos
+
+    def test_includes_id_age_and_priority_per_row(self):
+        from solo.commands import format_list
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [
+            self._row(
+                id=27,
+                summary="figure out positioning",
+                priority="high",
+                created_at="2026-05-23T10:00:00.000Z",
+            )
+        ]
+        out = format_list(rows, now=now)
+        assert "· 27 💡 figure out positioning (1d) [high]" in out
+
+    def test_renders_mention_marker(self):
+        from solo.commands import format_list
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [
+            self._row(
+                id=28,
+                kind="hard_task",
+                mentions="ashish",
+                summary="APD docs for directs",
+                created_at="2026-05-23T10:00:00.000Z",
+            )
+        ]
+        out = format_list(rows, now=now)
+        assert "· 28 👥 @ashish APD docs for directs" in out
+
+    def test_renders_unclassified_section(self):
+        from solo.commands import format_list
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [
+            self._row(
+                id=30,
+                classified=0,
+                kind=None,
+                summary=None,
+                priority=None,
+                raw_text="some thought captured but not classified yet",
+                created_at="2026-05-24T09:55:00.000Z",
+            )
+        ]
+        out = format_list(rows, now=now)
+        assert "⏳ unclassified" in out
+        assert "· 30 some thought captured but not classified yet (just now)" in out
+
+    def test_header_count_matches_total_rows(self):
+        from solo.commands import format_list
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [self._row(id=i) for i in range(7)]
+        out = format_list(rows, now=now)
+        assert "Active (7):" in out
+
+    def test_stale_warning_on_aging_rows(self):
+        from solo.commands import format_list
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        rows = [
+            self._row(
+                id=1, summary="old idea",
+                created_at="2026-05-03T10:00:00.000Z",
+            )
+        ]
+        out = format_list(rows, now=now)
+        assert "(3w) [med] ⚠️" in out
+
+
 class TestHandleTop3:
     @pytest.mark.asyncio
     async def test_drains_backlog_then_replies(self, db_conn):
