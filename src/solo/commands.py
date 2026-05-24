@@ -403,3 +403,22 @@ async def handle_redo(
             await update.message.reply_text("sorry, /redo failed — check logs")
         except Exception:
             logger.exception("/redo fallback reply also failed")
+
+
+_HELP_TEXT = (
+    "Commands:\n"
+    "/top3  — your top 3 right now\n"
+    "/list  — all active items, with IDs\n"
+    "/all   — everything (active + done)\n"
+    "/drop <id> [<id>...]  — hard delete\n"
+    "/done <id> [<id>...]  — mark done\n"
+    "/redo <id>            — re-classify\n"
+    "/help  — this message"
+)
+
+
+async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    try:
+        await update.message.reply_text(_HELP_TEXT)
+    except Exception:
+        logger.exception("/help failed")

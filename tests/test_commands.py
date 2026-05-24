@@ -718,3 +718,17 @@ class TestHandleRedo:
         update = FakeUpdate(msg)
         await handle_redo(update, FakeContextWithArgs(["9999"]), conn=db_conn)
         assert msg._replied == "id 9999 not found"
+
+
+class TestHandleHelp:
+    @pytest.mark.asyncio
+    async def test_replies_with_help_text(self, db_conn):
+        from solo.commands import handle_help
+
+        msg = FakeMessage("/help")
+        update = FakeUpdate(msg)
+        await handle_help(update, FakeContext())
+
+        assert msg._replied is not None
+        for cmd in ("/top3", "/list", "/all", "/drop", "/done", "/redo", "/help"):
+            assert cmd in msg._replied
