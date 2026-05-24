@@ -110,24 +110,91 @@ class TestMarker:
 
 
 class TestFormatTop3:
-    def test_renders_three_items_with_priority_and_kind(self):
-        from solo.commands import format_top3
-
-        items = [
-            {"priority": "high", "kind": "soft_task", "summary": "positioning"},
-            {"priority": "medium", "kind": "idea", "summary": "embeddings"},
-            {"priority": "low", "kind": "idea", "summary": "caching paper"},
-        ]
-        out = format_top3(items)
-        assert "Top 3:" in out
-        assert "1. [high · soft_task] positioning" in out
-        assert "2. [medium · idea] embeddings" in out
-        assert "3. [low · idea] caching paper" in out
+    def _row(self, **overrides):
+        base = {
+            "id": 1,
+            "kind": "idea",
+            "priority": "med",
+            "summary": "embeddings for dedup",
+            "mentions": None,
+            "created_at": "2026-05-23T10:00:00.000Z",
+        }
+        base.update(overrides)
+        return base
 
     def test_empty_returns_nothing_to_rank_yet(self):
         from solo.commands import format_top3
 
-        assert format_top3([]) == "nothing to rank yet"
+        assert format_top3([], aging=[]) == "nothing to rank yet"
+
+    def test_renders_three_terse_items_with_ideation_marker(self):
+        from solo.commands import format_top3
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        top = [
+            self._row(
+                id=1, summary="positioning for new feature",
+                created_at="2026-05-23T10:00:00.000Z",
+            ),
+            self._row(
+                id=2, summary="embeddings for dedup",
+                created_at="2026-05-20T10:00:00.000Z",
+            ),
+            self._row(
+                id=3, summary="prompt caching paper",
+                created_at="2026-05-09T10:00:00.000Z",
+            ),
+        ]
+        out = format_top3(top, aging=[], now=now)
+        assert "Top 3 for today:" in out
+        assert "1️⃣ 💡 positioning for new feature (1d)" in out
+        assert "2️⃣ 💡 embeddings for dedup (4d)" in out
+        # 15d → renders as "2w" and gets the ⚠️ (stale threshold is >14d)
+        assert "3️⃣ 💡 prompt caching paper (2w) ⚠️" in out
+
+    def test_renders_mention_marker(self):
+        from solo.commands import format_top3
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        top = [self._row(mentions="ashish", summary="1BHK reimbursement")]
+        out = format_top3(top, aging=[], now=now)
+        assert "1️⃣ 👥 @ashish 1BHK reimbursement" in out
+
+    def test_includes_aging_section(self):
+        from solo.commands import format_top3
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        top = [self._row(id=1, summary="t1", created_at="2026-05-23T10:00:00.000Z")]
+        aging = [
+            self._row(
+                id=10, summary="mentoring plan",
+                created_at="2026-05-03T10:00:00.000Z",
+            ),
+            self._row(
+                id=11, summary="team morale", mentions="john",
+                created_at="2026-04-15T10:00:00.000Z",
+            ),
+        ]
+        out = format_top3(top, aging=aging, now=now)
+        assert "⚠️ Also aging (>14d, not in top 3):" in out
+        assert "💡 mentoring plan (3w)" in out
+        assert "👥 @john team morale" in out
+
+    def test_aging_section_caps_at_five_with_overflow_note(self):
+        from solo.commands import format_top3
+
+        now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
+        top = [self._row(id=1, summary="t1", created_at="2026-05-23T10:00:00.000Z")]
+        aging = [
+            self._row(
+                id=10 + i, summary=f"stale {i}",
+                created_at="2026-04-15T10:00:00.000Z",
+            )
+            for i in range(8)
+        ]
+        out = format_top3(top, aging=aging, now=now)
+        # First 5 listed, then "(+3 more)"
+        assert "(+3 more)" in out
 
 
 class TestFormatLog:

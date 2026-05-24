@@ -63,12 +63,49 @@ def _marker(mentions_csv: str | None) -> str:
     return "👥 " + " ".join(names)
 
 
-def format_top3(items: list[dict]) -> str:
-    if not items:
+_NUMBER_EMOJI = ("1️⃣", "2️⃣", "3️⃣")
+_STALE_AGE_DAYS = 14
+_AGING_CAP = 5
+
+
+def _is_stale(iso_ts: str, now: datetime | None = None) -> bool:
+    now = now or datetime.now(UTC)
+    created = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+    return (now - created).days > _STALE_AGE_DAYS
+
+
+def format_top3(
+    top: list[dict],
+    *,
+    aging: list[dict],
+    now: datetime | None = None,
+) -> str:
+    if not top:
         return "nothing to rank yet"
-    lines = ["Top 3:", ""]
-    for i, r in enumerate(items, start=1):
-        lines.append(f"{i}. [{r['priority']} · {r['kind']}] {r['summary']}")
+
+    lines = ["Top 3 for today:", ""]
+    for i, r in enumerate(top):
+        if i >= len(_NUMBER_EMOJI):
+            break
+        marker = _marker(r.get("mentions"))
+        age = _age(r["created_at"], now=now)
+        stale = " ⚠️" if _is_stale(r["created_at"], now=now) else ""
+        lines.append(
+            f"{_NUMBER_EMOJI[i]} {marker} {r['summary']} ({age}){stale}"
+        )
+
+    if aging:
+        lines.append("")
+        lines.append("⚠️ Also aging (>14d, not in top 3):")
+        shown = aging[:_AGING_CAP]
+        for r in shown:
+            marker = _marker(r.get("mentions"))
+            age = _age(r["created_at"], now=now)
+            lines.append(f"   • {marker} {r['summary']} ({age})")
+        overflow = len(aging) - len(shown)
+        if overflow > 0:
+            lines.append(f"   (+{overflow} more)")
+
     return "\n".join(lines)
 
 
