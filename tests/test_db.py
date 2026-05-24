@@ -385,3 +385,100 @@ class TestFetchClassified:
         from solo.db import fetch_classified
 
         assert fetch_classified(conn, kinds=[]) == []
+
+
+class TestMarkDone:
+    def test_marks_existing_row_done(self, conn):
+        from solo.db import insert_entry, mark_done
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        ok = mark_done(conn, rid)
+        assert ok is True
+
+        done = conn.execute("SELECT done FROM entries WHERE id=?", (rid,)).fetchone()[0]
+        assert done == 1
+
+    def test_returns_false_for_unknown_id(self, conn):
+        from solo.db import mark_done
+
+        assert mark_done(conn, 9999) is False
+
+
+class TestDeleteEntry:
+    def test_deletes_existing_row(self, conn):
+        from solo.db import delete_entry, insert_entry
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        ok = delete_entry(conn, rid)
+        assert ok is True
+
+        row = conn.execute("SELECT id FROM entries WHERE id=?", (rid,)).fetchone()
+        assert row is None
+
+    def test_returns_false_for_unknown_id(self, conn):
+        from solo.db import delete_entry
+
+        assert delete_entry(conn, 9999) is False
+
+
+class TestResetForReclassification:
+    def test_clears_classification_fields(self, conn):
+        from solo.db import apply_classification, insert_entry, reset_for_reclassification
+
+        rid = insert_entry(conn, "x", 1, 1, "{}")
+        apply_classification(conn, rid, "idea", "summary text", "high")
+
+        ok = reset_for_reclassification(conn, rid)
+        assert ok is True
+
+        row = conn.execute(
+            "SELECT classified, kind, summary, priority, classification_attempts "
+            "FROM entries WHERE id=?",
+            (rid,),
+        ).fetchone()
+        assert row[0] == 0
+        assert row[1] is None
+        assert row[2] is None
+        assert row[3] is None
+        assert row[4] == 0
+
+    def test_returns_false_for_unknown_id(self, conn):
+        from solo.db import reset_for_reclassification
+
+        assert reset_for_reclassification(conn, 9999) is False
+
+
+class TestFetchActive:
+    def test_returns_all_classified_active_rows(self, conn):
+        from solo.db import apply_classification, fetch_active, insert_entry, mark_done
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        c = insert_entry(conn, "c", 1, 3, "{}")
+        apply_classification(conn, a, "idea", "a", "low")
+        apply_classification(conn, b, "soft_task", "b", "high")
+        apply_classification(conn, c, "note", "c", "low")
+        mark_done(conn, b)
+
+        rows = fetch_active(conn)
+        ids = sorted(r["id"] for r in rows)
+        assert ids == [a, c]
+
+    def test_filters_by_kinds_when_given(self, conn):
+        from solo.db import apply_classification, fetch_active, insert_entry
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        apply_classification(conn, a, "idea", "a", "low")
+        apply_classification(conn, b, "note", "b", "low")
+
+        rows = fetch_active(conn, kinds=["idea"])
+        assert [r["id"] for r in rows] == [a]
+
+    def test_includes_unclassified_when_no_kinds_filter(self, conn):
+        from solo.db import fetch_active, insert_entry
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        rows = fetch_active(conn)
+        ids = [r["id"] for r in rows]
+        assert a in ids

@@ -151,3 +151,68 @@ def fetch_classified(
         (*kinds, limit),
     )
     return [dict(row) for row in cursor.fetchall()]
+
+
+def fetch_active(
+    conn: sqlite3.Connection,
+    kinds: list[str] | None = None,
+    limit: int = 200,
+) -> list[dict]:
+    """Return active (done=0) entries, optionally filtered to kinds.
+
+    When `kinds` is None, includes unclassified rows. When given, restricts
+    to classified rows whose `kind` matches.
+    """
+    if kinds is None:
+        cursor = conn.execute(
+            "SELECT * FROM entries WHERE done = 0 "
+            "ORDER BY created_at DESC, id DESC LIMIT ?",
+            (limit,),
+        )
+    else:
+        if not kinds:
+            return []
+        placeholders = ",".join("?" * len(kinds))
+        cursor = conn.execute(
+            f"SELECT * FROM entries WHERE done = 0 AND classified = 1 "
+            f"AND kind IN ({placeholders}) "
+            "ORDER BY created_at DESC, id DESC LIMIT ?",
+            (*kinds, limit),
+        )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def mark_done(conn: sqlite3.Connection, entry_id: int) -> bool:
+    """Set done=1. Returns True iff a row was updated."""
+    cursor = conn.execute(
+        "UPDATE entries SET done = 1 WHERE id = ?",
+        (entry_id,),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def delete_entry(conn: sqlite3.Connection, entry_id: int) -> bool:
+    """Hard delete. Returns True iff a row was deleted."""
+    cursor = conn.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def reset_for_reclassification(conn: sqlite3.Connection, entry_id: int) -> bool:
+    """Zero kind/summary/priority/attempts/classified. Next classify_pending
+    will re-run this row. Returns True iff a row was updated."""
+    cursor = conn.execute(
+        """
+        UPDATE entries
+        SET classified = 0,
+            kind = NULL,
+            summary = NULL,
+            priority = NULL,
+            classification_attempts = 0
+        WHERE id = ?
+        """,
+        (entry_id,),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
