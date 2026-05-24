@@ -6,7 +6,7 @@ This is also a **learn-by-building** project for getting fluent in AI engineerin
 
 ## Status
 
-V0 — pre-implementation. Design is settled; code starts next.
+**V0 complete.** Capture (`bot.py`), lazy classifier (`classifier.py`), `/top3` and `/log` commands, `llm_calls` trace table, prompts-as-files, classifier eval harness (`scripts/eval.py`). V1 (`/expand` — first hand-rolled agent loop) is next.
 
 ## Read first
 
@@ -29,7 +29,7 @@ Python 3.12 · `uv` · `python-telegram-bot` (long polling) · SQLite · OpenRou
 ```bash
 uv sync                              # install deps
 cp .env.example .env                 # fill in secrets
-uv run python -m solo.bot            # start bot (long polling)
+uv run python -m solo                # start bot (long polling)
 uv run pytest                        # tests
 uv run python scripts/eval.py        # classifier eval
 ```

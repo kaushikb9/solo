@@ -59,7 +59,7 @@ def main() -> None:
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     db_path = os.environ.get("SOLO_DB_PATH", "./data/solo.db")
     openrouter_key = os.environ["OPENROUTER_API_KEY"]
-    model = os.environ.get("SOLO_CLASSIFIER_MODEL", "minimax/minimax-m2.7")
+    model = os.environ.get("SOLO_CLASSIFY_MODEL", "minimax/minimax-m2.7")
 
     raw_chats = os.environ.get("SOLO_ALLOWED_CHATS", "")
     allowed_chats = {int(c.strip()) for c in raw_chats.split(",") if c.strip()}
