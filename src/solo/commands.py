@@ -84,9 +84,7 @@ def format_top3(
         marker = _marker(r.get("mentions"))
         age = _age(r["created_at"], now=now)
         stale = " ⚠️" if _is_stale(r["created_at"], now=now) else ""
-        lines.append(
-            f"{_NUMBER_EMOJI[i]} {marker} {r['summary']} ({age}){stale}"
-        )
+        lines.append(f"{_NUMBER_EMOJI[i]} {marker} {r['summary']} ({age}){stale}")
 
     if aging:
         lines.append("")
@@ -216,10 +214,7 @@ async def handle_top3(
         rows = db.fetch_classified(conn, kinds=["soft_task", "idea"])
         top = rank.top3(rows)
         top_ids = {r["id"] for r in top}
-        aging = [
-            r for r in rows
-            if r["id"] not in top_ids and _is_stale(r["created_at"])
-        ]
+        aging = [r for r in rows if r["id"] not in top_ids and _is_stale(r["created_at"])]
         await update.message.reply_text(format_top3(top, aging=aging))
     except Exception:
         logger.exception("/top3 failed for chat=%d", update.effective_chat.id)
@@ -316,9 +311,7 @@ async def handle_drop(
             )
         else:
             await update.message.reply_text(
-                "nothing dropped (ids not found: "
-                + ", ".join(str(i) for i in not_found)
-                + ")"
+                "nothing dropped (ids not found: " + ", ".join(str(i) for i in not_found) + ")"
             )
     except Exception:
         logger.exception("/drop failed for chat=%d", update.effective_chat.id)
@@ -359,9 +352,7 @@ async def handle_done(
             )
         else:
             await update.message.reply_text(
-                "nothing changed (ids not found: "
-                + ", ".join(str(i) for i in not_found)
-                + ")"
+                "nothing changed (ids not found: " + ", ".join(str(i) for i in not_found) + ")"
             )
     except Exception:
         logger.exception("/done failed for chat=%d", update.effective_chat.id)
@@ -392,9 +383,7 @@ async def handle_redo(
             return
 
         if db.reset_for_reclassification(conn, entry_id):
-            await update.message.reply_text(
-                f"requeued {entry_id} for next /top3"
-            )
+            await update.message.reply_text(f"requeued {entry_id} for next /top3")
         else:
             await update.message.reply_text(f"id {entry_id} not found")
     except Exception:

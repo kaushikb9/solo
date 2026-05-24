@@ -45,9 +45,7 @@ class TestSchema:
         from solo.db import insert_entry
 
         row_id = insert_entry(conn, "plain thought", 1, 1, "{}")
-        row = conn.execute(
-            "SELECT done, mentions FROM entries WHERE id = ?", (row_id,)
-        ).fetchone()
+        row = conn.execute("SELECT done, mentions FROM entries WHERE id = ?", (row_id,)).fetchone()
         assert row[0] == 0  # done defaults to 0
         assert row[1] is None  # mentions NULL when no @-names
 

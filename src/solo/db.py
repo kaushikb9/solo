@@ -166,8 +166,7 @@ def fetch_active(
     """
     if kinds is None:
         cursor = conn.execute(
-            "SELECT * FROM entries WHERE done = 0 "
-            "ORDER BY created_at DESC, id DESC LIMIT ?",
+            "SELECT * FROM entries WHERE done = 0 ORDER BY created_at DESC, id DESC LIMIT ?",
             (limit,),
         )
     else:

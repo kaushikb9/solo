@@ -133,15 +133,18 @@ class TestFormatTop3:
         now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
         top = [
             self._row(
-                id=1, summary="positioning for new feature",
+                id=1,
+                summary="positioning for new feature",
                 created_at="2026-05-23T10:00:00.000Z",
             ),
             self._row(
-                id=2, summary="embeddings for dedup",
+                id=2,
+                summary="embeddings for dedup",
                 created_at="2026-05-20T10:00:00.000Z",
             ),
             self._row(
-                id=3, summary="prompt caching paper",
+                id=3,
+                summary="prompt caching paper",
                 created_at="2026-05-09T10:00:00.000Z",
             ),
         ]
@@ -167,11 +170,14 @@ class TestFormatTop3:
         top = [self._row(id=1, summary="t1", created_at="2026-05-23T10:00:00.000Z")]
         aging = [
             self._row(
-                id=10, summary="mentoring plan",
+                id=10,
+                summary="mentoring plan",
                 created_at="2026-05-03T10:00:00.000Z",
             ),
             self._row(
-                id=11, summary="team morale", mentions="john",
+                id=11,
+                summary="team morale",
+                mentions="john",
                 created_at="2026-04-15T10:00:00.000Z",
             ),
         ]
@@ -187,7 +193,8 @@ class TestFormatTop3:
         top = [self._row(id=1, summary="t1", created_at="2026-05-23T10:00:00.000Z")]
         aging = [
             self._row(
-                id=10 + i, summary=f"stale {i}",
+                id=10 + i,
+                summary=f"stale {i}",
                 created_at="2026-04-15T10:00:00.000Z",
             )
             for i in range(8)
@@ -298,7 +305,8 @@ class TestFormatList:
         now = datetime(2026, 5, 24, 10, 0, 0, tzinfo=UTC)
         rows = [
             self._row(
-                id=1, summary="old idea",
+                id=1,
+                summary="old idea",
                 created_at="2026-05-03T10:00:00.000Z",
             )
         ]
@@ -638,9 +646,7 @@ class TestHandleDrop:
         rid = insert_entry(db_conn, "x", 1, 1, "{}")
         msg = FakeMessage(f"/drop {rid} bogus")
         update = FakeUpdate(msg)
-        await handle_drop(
-            update, FakeContextWithArgs([str(rid), "bogus"]), conn=db_conn
-        )
+        await handle_drop(update, FakeContextWithArgs([str(rid), "bogus"]), conn=db_conn)
         assert msg._replied == f"dropped 1: {rid}"
 
 
