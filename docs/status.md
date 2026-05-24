@@ -6,53 +6,55 @@ Living doc. Update as part of any non-trivial change so the next agent (possibly
 
 ## Last updated
 
-**2026-05-23** — by Claude Code (Opus 4.7).
+**2026-05-24** — by Claude Code (Opus 4.7).
 
 ## Current state
 
-**V0 is complete.** All six items in `AGENTS.md` §V0 scope ship:
+**V0.1 is complete.** V0 (capture → classifier → /top3 + /log → trace table → prompts-as-files → eval harness) shipped over slices 1–5. Slice 6 added the admin surface and visual refresh kb wanted after a few days of real use.
 
-1. Telegram capture → SQLite (slice 1)
-2. `LLMClient` + `llm_calls` trace table (slice 2)
-3. Lazy classifier (slice 3)
-4. `/top3` and `/log` commands (slice 4)
-5. Prompts as files in `src/solo/prompts/` (continuous, slices 3+)
-6. Classifier eval harness (slice 5 — just landed)
+Commands available:
 
-Slice 5 added:
-- `src/solo/evals.py` — pure scoring (`score_kind`, `score_priority`), confusion matrix builder, and `summarize` aggregator.
-- `src/solo/trace.py` — new `aggregate_range(conn, id_min, id_max)` helper for cost/latency reporting scoped to one eval run.
-- `scripts/eval.py` — sequential runner. Reads `evals/classify.jsonl`, calls `LLMClient.structured`, scores, prints a terminal table, writes a JSON sidecar to `evals/results/<UTC-ISO>.json`.
-- `evals/classify.jsonl` — 15 hand-labeled seed entries covering all 4 kinds × 3 priorities, with a few intentional edges.
-- `evals/results/.gitkeep` + `.gitignore` rule to keep run outputs local.
-- `docs/decisions/0006-skip-summary-auto-grading.md` — ADR-0006.
-- `docs/concepts/evaluating-llm-outputs.md` — concept primer (also backfills the concepts index).
-- `docs/walkthrough.html` updated; slice 5 card flipped to done, V1 promoted to next.
+- `/top3` — top 3 from `soft_task` + `idea`, terse format with emoji, age, and aging-items section.
+- `/list` — active items only, grouped by kind, with IDs.
+- `/all` — everything including done items (✅ marker).
+- `/drop <id> [<id>...]` — hard delete.
+- `/done <id> [<id>...]` — soft mark complete; stays in `/all`.
+- `/redo <id>` — reset classification fields; next `/top3` re-classifies.
+- `/help` — list of commands.
+
+Schema additions in slice 6: `done` (boolean, default 0) and `mentions` (CSV from `@\w+` regex at insert time).
+
+Slice 6 manifest:
+- `src/solo/mentions.py` — pure `extract(raw_text)`.
+- `src/solo/db.py` — added `mark_done`, `delete_entry`, `reset_for_reclassification`, `fetch_active`; `fetch_classified` now filters `done=0`; `insert_entry` populates `mentions`; migration adds the two new columns idempotently.
+- `src/solo/commands.py` — rewritten formatters (`format_top3`, `format_list`, `format_all`) with `_age` and `_marker` helpers; new handlers for `/list`, `/all`, `/drop`, `/done`, `/redo`, `/help`; `handle_top3` now surfaces an aging-items section.
+- `src/solo/bot.py` — registers all new `CommandHandler`s; `/log` removed.
+- `docs/decisions/0007-drop-is-hard-delete.md` — ADR-0007.
+- `docs/decisions/0008-mention-extraction-is-regex.md` — ADR-0008.
+- `docs/walkthrough.html` updated through slice 6.
 
 Pending manual verification:
 - Live classifier test against OpenRouter — `OPENROUTER_API_KEY=… uv run pytest tests/test_classifier_live.py -v`.
-- End-to-end smoke of `/top3` + `/log` against a live Telegram chat.
-- Real eval run: `OPENROUTER_API_KEY=… uv run python scripts/eval.py` — the harness shape is unit-tested, but the first real run is the signal on whether MiniMax M2.7 produces sane numbers on this seed set.
+- End-to-end smoke of all V0.1 commands against a live Telegram chat.
+- Real eval run: `OPENROUTER_API_KEY=… uv run python scripts/eval.py`.
 
 ## What's next
-
-V0 is done. V1 work begins. Per `docs/architecture.md` §1, V1 introduces the small agent surface:
 
 1. ~~Telegram capture → SQLite~~ — done (slice 1)
 2. ~~`LLMClient` + `llm_calls` trace table~~ — done (slice 2)
 3. ~~Lazy classifier~~ — done (slice 3)
 4. ~~`/top3` + `/log` commands~~ — done (slice 4)
 5. ~~Classifier eval harness~~ — done (slice 5)
-6. **V1 — `/expand`**: hand-rolled tool-use loop for open-ended thinking. Per `docs/architecture.md` §3, this is the first command where solo earns a real agent loop (~100 lines). Likely sub-slices: trace `agent_runs` + `agent_steps` tables, the loop itself, the `expand` prompt, the Telegram surface, evals for `expand` quality.
-
-Before starting V1, brainstorm the agent loop shape. The whole point of solo's pedagogical bent is owning that loop — don't skip the design conversation.
+6. ~~Admin surface (/list, /all, /drop, /done, /redo, /help) + visual refresh~~ — done (slice 6)
+7. **V1 — `/expand`**: the first hand-rolled agent loop, per `docs/architecture.md` §1/§3. Sub-slices likely: `agent_runs` + `agent_steps` tables, the loop itself, the `expand` prompt, the Telegram surface, evals for `expand` quality. Earns its own brainstorm + spec + plan cycle.
 
 ## Open decisions deferred to implementation
 
-- After a real eval run lands: A/B the heuristic-only ranker (ADR-0005) against a Heuristic + LLM scoring pass shape. Decision criterion = measurable improvement on the eval set.
-- After embedding pipeline lands (V1+): revisit ADR-0006 (auto-grading summary text via cosine similarity).
+- After a real eval run lands: A/B the heuristic-only ranker (ADR-0005) against a Heuristic + LLM scoring pass.
+- After a week of real use of V0.1: reconsider whether nameless external asks (the 🔔 slot reserved in ADR-0008) are common enough to add LLM-inferred source.
+- After an embedding pipeline lands (V1+): revisit ADR-0006 (auto-grading summary text).
 - Verify `MODEL_PRICING` rates against openrouter.ai/models once real eval cost numbers come in.
-- Apple Reminders bridge approach (V2 — out of V0+V1 scope).
+- Apple Reminders bridge approach (V2).
 
 ## Blockers
 

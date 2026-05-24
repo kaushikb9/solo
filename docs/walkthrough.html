@@ -174,10 +174,11 @@
     <li><a href="#slice3">6. Slice 3 — Lazy classifier</a></li>
     <li><a href="#slice4">7. Slice 4 — /top3 + /log <span class="pill green">done</span></a></li>
     <li><a href="#slice5">8. Slice 5 — Eval harness <span class="pill green">done</span></a></li>
-    <li><a href="#abstractions">9. Key abstractions</a></li>
-    <li><a href="#concepts">10. Concept primers</a></li>
-    <li><a href="#decisions">11. Architecture decisions</a></li>
-    <li><a href="#status">12. Status &amp; what&rsquo;s next</a></li>
+    <li><a href="#slice6">9. Slice 6 — Admin surface <span class="pill green">done</span></a></li>
+    <li><a href="#abstractions">10. Key abstractions</a></li>
+    <li><a href="#concepts">11. Concept primers</a></li>
+    <li><a href="#decisions">12. Architecture decisions</a></li>
+    <li><a href="#status">13. Status &amp; what&rsquo;s next</a></li>
   </ol>
   <div class="legend">
     <div><span class="dot" style="background: var(--accent)"></span> slice 1 — done</div>
@@ -185,6 +186,7 @@
     <div><span class="dot" style="background: var(--green)"></span> slice 3 — done</div>
     <div><span class="dot" style="background: var(--green)"></span> slice 4 — done</div>
     <div><span class="dot" style="background: var(--green)"></span> slice 5 — done</div>
+    <div><span class="dot" style="background: var(--green)"></span> slice 6 — done</div>
     <div><span class="dot" style="background: var(--amber)"></span> V1 — next</div>
   </div>
 </nav>
@@ -195,9 +197,9 @@
 <p class="lede">A personal thinking companion. Telegram captures raw thoughts &rarr; SQLite stores them &rarr; an LLM classifier runs lazily when <code>/top3</code> is invoked &rarr; ranked priorities come back. 90% deterministic spine; the small agent surface only shows up in V1.</p>
 <div class="meta">
   <span class="pill">V0 scope</span>
-  <span class="pill green">V0 complete &mdash; all 5 slices shipped</span>
+  <span class="pill green">V0.1 complete &mdash; admin surface + visual refresh</span>
   <span class="pill amber">V1 surface (/expand) next</span>
-  <span>Last regen: 2026-05-23</span>
+  <span>Last regen: 2026-05-24</span>
 </div>
 
 <!-- ============================================================ -->
@@ -440,7 +442,60 @@ Confusion (rows = actual, cols = predicted):
 </div>
 
 <!-- ============================================================ -->
-<h2 id="abstractions">9. Key abstractions</h2>
+<h2 id="slice6">9. Slice 6 &mdash; Admin surface + visual refresh</h2>
+<div class="slice s3">
+  <h3>Make the bot usable beyond capture <span class="pill green">done</span></h3>
+  <div class="why">After ~30 captured entries, V0 hit a wall: no IDs in <code>/log</code>, no way to delete or mark done, no way to fix a mis-classification. Cleanup meant editing SQLite by hand.</div>
+
+  <p>Five new commands; <code>/log</code> renamed; both <code>/top3</code> and the new <code>/all</code> got a visual refresh.</p>
+
+  <table style="margin: 12px 0;">
+    <thead><tr><th>Cmd</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/top3</code></td><td>Same ranking; terse emoji format with age + aging section.</td></tr>
+      <tr><td><code>/list</code></td><td>Active items grouped by kind, with IDs.</td></tr>
+      <tr><td><code>/all</code></td><td>Renamed from <code>/log</code>. Everything including done (&check; marker).</td></tr>
+      <tr><td><code>/drop &lt;id&gt;...</code></td><td>Hard delete.</td></tr>
+      <tr><td><code>/done &lt;id&gt;...</code></td><td>Soft. Stays in <code>/all</code>.</td></tr>
+      <tr><td><code>/redo &lt;id&gt;</code></td><td>Reset classification fields; next <code>/top3</code> re-classifies.</td></tr>
+      <tr><td><code>/help</code></td><td>List all commands.</td></tr>
+    </tbody>
+  </table>
+
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">New /top3 shape</h4>
+<pre><code>Top 3 for today:
+
+1️⃣ 👥 @ashish 1BHK reimbursement (3d)
+2️⃣ 💡 review Greenhouse interview feedback (1d) ⚠️
+3️⃣ 💡 embeddings for dedup (4d)
+
+⚠️ Also aging (>14d, not in top 3):
+   • 👥 @john project frontier doc (3w)
+   • 💡 team mentoring plan (5w)</code></pre>
+
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Schema bump (additive, idempotent migration)</h4>
+<pre><code>ALTER TABLE entries ADD COLUMN done     INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE entries ADD COLUMN mentions TEXT;</code></pre>
+
+  <ul>
+    <li><strong>done</strong> — boolean; <code>/done</code> sets it; <code>/list</code> and <code>/top3</code> filter <code>done=0</code>.</li>
+    <li><strong>mentions</strong> — CSV of <code>@name</code> extracted at <code>insert_entry</code> time via regex (<a href="decisions/0008-mention-extraction-is-regex.md">ADR-0008</a>). Used to render the 👥 marker. No LLM cost; the classifier is unchanged.</li>
+  </ul>
+
+  <h4 style="margin: 14px 0 6px 0; font-size: 13px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase;">Files</h4>
+  <div class="files">
+    <div>src/solo/mentions.py</div>
+    <div>src/solo/commands.py</div>
+    <div>src/solo/db.py (+helpers)</div>
+    <div>src/solo/bot.py (handlers)</div>
+    <div>tests/test_mentions.py</div>
+    <div>tests/test_commands.py (rewrite)</div>
+  </div>
+  <p>Design decisions captured in <a href="decisions/0007-drop-is-hard-delete.md">ADR-0007</a> (drop=hard) and <a href="decisions/0008-mention-extraction-is-regex.md">ADR-0008</a> (regex@insert). Spec at <a href="superpowers/specs/2026-05-24-admin-surface-design.md">specs/2026-05-24-admin-surface-design.md</a>.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="abstractions">10. Key abstractions</h2>
 <div class="grid2">
   <div class="card">
     <div class="k">module</div>
@@ -479,6 +534,11 @@ Confusion (rows = actual, cols = predicted):
   </div>
   <div class="card">
     <div class="k">module</div>
+    <div class="v">solo.mentions</div>
+    <div class="d">Pure <code>extract(raw_text)</code>. Regex on <code>@\w+</code>. Used by <code>insert_entry</code> to populate the <code>mentions</code> column at capture time.</div>
+  </div>
+  <div class="card">
+    <div class="k">module</div>
     <div class="v">solo.commands</div>
     <div class="d"><code>handle_top3</code>, <code>handle_log</code> + pure formatters <code>format_top3</code>, <code>format_log</code>. Try/except at handler boundary so a bug never crashes the polling loop.</div>
   </div>
@@ -490,7 +550,7 @@ Confusion (rows = actual, cols = predicted):
 </div>
 
 <!-- ============================================================ -->
-<h2 id="concepts">10. Concept primers</h2>
+<h2 id="concepts">11. Concept primers</h2>
 <p>Every slice that introduces a new AI/agent concept ships with a primer in <code>docs/concepts/</code>. They&rsquo;re short (300&ndash;500 words) and assume the reader is new to AI.</p>
 <div class="grid2">
   <div class="card">
@@ -516,7 +576,7 @@ Confusion (rows = actual, cols = predicted):
 </div>
 
 <!-- ============================================================ -->
-<h2 id="decisions">11. Architecture decisions</h2>
+<h2 id="decisions">12. Architecture decisions</h2>
 <p>Non-trivial implementation choices that don&rsquo;t fit in <code>docs/architecture.md</code>. Each is ~250 words, recording the <em>why</em>.</p>
 <div class="grid2">
   <div class="card">
@@ -547,12 +607,22 @@ Confusion (rows = actual, cols = predicted):
   <div class="card">
     <div class="k">ADR-0006</div>
     <div class="v"><a href="decisions/0006-skip-summary-auto-grading.md">Skip auto-grading summary text</a></div>
-    <div class="d">Auto-grading prose with prose needs embeddings. Predictions surfaced in the JSON sidecar instead. Revisit when slice 6 introduces an embedding pipeline.</div>
+    <div class="d">Auto-grading prose with prose needs embeddings. Predictions surfaced in the JSON sidecar instead. Revisit when an embedding pipeline lands.</div>
+  </div>
+  <div class="card">
+    <div class="k">ADR-0007</div>
+    <div class="v"><a href="decisions/0007-drop-is-hard-delete.md">/drop is hard delete; /done is soft</a></div>
+    <div class="d">Binary state (done boolean), not a three-valued status. Misclicks on /drop are unrecoverable by design — smaller schema, cleaner mental model.</div>
+  </div>
+  <div class="card">
+    <div class="k">ADR-0008</div>
+    <div class="v"><a href="decisions/0008-mention-extraction-is-regex.md">@name extraction is regex, not LLM</a></div>
+    <div class="d">Regex at insert time → deterministic, zero LLM cost, instant marker. The 🔔 "inferred external ask" slot is reserved but unused for V0.1.</div>
   </div>
 </div>
 
 <!-- ============================================================ -->
-<h2 id="status">12. Status &amp; what&rsquo;s next</h2>
+<h2 id="status">13. Status &amp; what&rsquo;s next</h2>
 <p>Canonical state lives in <a href="status.md">docs/status.md</a> &mdash; that file is the source of truth; this one mirrors it for context.</p>
 <ul>
   <li><span class="pill green">done</span> Slice 1 &mdash; Telegram capture &rarr; SQLite</li>
@@ -560,9 +630,10 @@ Confusion (rows = actual, cols = predicted):
   <li><span class="pill green">done</span> Slice 3 &mdash; Lazy classifier</li>
   <li><span class="pill green">done</span> Slice 4 &mdash; <code>/top3</code> and <code>/log</code> Telegram commands</li>
   <li><span class="pill green">done</span> Slice 5 &mdash; Classifier eval harness (<code>evals/classify.jsonl</code> + <code>scripts/eval.py</code>)</li>
+  <li><span class="pill green">done</span> Slice 6 &mdash; Admin surface (/list, /all, /drop, /done, /redo, /help) + visual refresh</li>
   <li><span class="pill amber">next</span> V1 &mdash; <code>/expand</code> (hand-rolled agent loop, per <a href="architecture.md">architecture.md</a> &sect;1)</li>
 </ul>
-<p><strong>V0 is complete.</strong> All six items in the V0 scope (<a href="../AGENTS.md">AGENTS.md</a> &sect;V0) ship: capture, classifier, /top3, /log, trace table, prompts-as-files, eval harness.</p>
+<p><strong>V0.1 is complete.</strong> All six items in the V0 scope (<a href="../AGENTS.md">AGENTS.md</a> &sect;V0) plus the V0.1 admin surface ship: capture, classifier, /top3, /list, /all, /drop, /done, /redo, /help, trace table, prompts-as-files, eval harness.</p>
 <p><strong>Pending manual verification:</strong></p>
 <ul>
   <li>The gated live classifier test (<code>tests/test_classifier_live.py</code>) hasn&rsquo;t been run with a real <code>OPENROUTER_API_KEY</code>. Until it has, the assumption that <code>response_format=schema</code> works reliably against MiniMax M2.7 / Kimi K2.6 is unconfirmed.</li>
