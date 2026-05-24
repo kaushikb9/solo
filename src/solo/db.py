@@ -146,7 +146,8 @@ def fetch_classified(
         return []
     placeholders = ",".join("?" * len(kinds))
     cursor = conn.execute(
-        f"SELECT * FROM entries WHERE classified = 1 AND kind IN ({placeholders}) "
+        f"SELECT * FROM entries WHERE classified = 1 AND done = 0 "
+        f"AND kind IN ({placeholders}) "
         "ORDER BY created_at DESC, id DESC LIMIT ?",
         (*kinds, limit),
     )

@@ -386,6 +386,18 @@ class TestFetchClassified:
 
         assert fetch_classified(conn, kinds=[]) == []
 
+    def test_excludes_done_rows(self, conn):
+        from solo.db import apply_classification, fetch_classified, insert_entry, mark_done
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        apply_classification(conn, a, "idea", "a", "high")
+        apply_classification(conn, b, "idea", "b", "high")
+        mark_done(conn, a)
+
+        rows = fetch_classified(conn, kinds=["idea"])
+        assert [r["id"] for r in rows] == [b]
+
 
 class TestMarkDone:
     def test_marks_existing_row_done(self, conn):
