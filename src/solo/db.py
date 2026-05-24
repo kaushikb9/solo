@@ -154,6 +154,15 @@ def fetch_classified(
     return [dict(row) for row in cursor.fetchall()]
 
 
+def fetch_all_entries(conn: sqlite3.Connection, limit: int = 200) -> list[dict]:
+    """Return entries newest-first regardless of done/classified state."""
+    cursor = conn.execute(
+        "SELECT * FROM entries ORDER BY created_at DESC, id DESC LIMIT ?",
+        (limit,),
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
 def fetch_active(
     conn: sqlite3.Connection,
     kinds: list[str] | None = None,

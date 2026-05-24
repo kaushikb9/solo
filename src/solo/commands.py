@@ -254,11 +254,7 @@ async def handle_all(
     if not _allowed(update, allowed_chats):
         return
     try:
-        cursor = conn.execute(
-            "SELECT * FROM entries ORDER BY created_at DESC, id DESC LIMIT ?",
-            (_LIST_LIMIT,),
-        )
-        rows = [dict(r) for r in cursor.fetchall()]
+        rows = db.fetch_all_entries(conn, limit=_LIST_LIMIT)
         await update.message.reply_text(format_all(rows))
     except Exception:
         logger.exception("/all failed for chat=%d", update.effective_chat.id)
@@ -406,7 +402,14 @@ _HELP_TEXT = (
 )
 
 
-async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_help(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    allowed_chats: set[int] | None = None,
+) -> None:
+    if not _allowed(update, allowed_chats):
+        return
     try:
         await update.message.reply_text(_HELP_TEXT)
     except Exception:

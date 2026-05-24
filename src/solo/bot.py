@@ -102,6 +102,9 @@ def main() -> None:
     async def _redo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await handle_redo(update, ctx, conn=conn, allowed_chats=allowed_chats)
 
+    async def _help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_help(update, ctx, allowed_chats=allowed_chats)
+
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _capture))
     app.add_handler(CommandHandler("top3", _top3))
     app.add_handler(CommandHandler("list", _list))
@@ -109,7 +112,7 @@ def main() -> None:
     app.add_handler(CommandHandler("drop", _drop))
     app.add_handler(CommandHandler("done", _done))
     app.add_handler(CommandHandler("redo", _redo))
-    app.add_handler(CommandHandler("help", handle_help))
+    app.add_handler(CommandHandler("help", _help))
 
     logger.info("Bot starting (long polling)...")
     app.run_polling()

@@ -738,3 +738,12 @@ class TestHandleHelp:
         assert msg._replied is not None
         for cmd in ("/top3", "/list", "/all", "/drop", "/done", "/redo", "/help"):
             assert cmd in msg._replied
+
+    @pytest.mark.asyncio
+    async def test_rejects_disallowed_chat(self, db_conn):
+        from solo.commands import handle_help
+
+        msg = FakeMessage("/help", chat_id=666)
+        update = FakeUpdate(msg)
+        await handle_help(update, FakeContext(), allowed_chats={123})
+        assert msg._replied is None

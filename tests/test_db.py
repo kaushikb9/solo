@@ -458,6 +458,31 @@ class TestResetForReclassification:
         assert reset_for_reclassification(conn, 9999) is False
 
 
+class TestFetchAllEntries:
+    def test_returns_everything_newest_first(self, conn):
+        from solo.db import apply_classification, fetch_all_entries, insert_entry, mark_done
+
+        a = insert_entry(conn, "a", 1, 1, "{}")
+        b = insert_entry(conn, "b", 1, 2, "{}")
+        c = insert_entry(conn, "c", 1, 3, "{}")
+        apply_classification(conn, b, "idea", "b", "low")
+        mark_done(conn, b)
+
+        rows = fetch_all_entries(conn)
+        ids = [r["id"] for r in rows]
+        # Includes done rows and unclassified rows; newest-first.
+        assert set(ids) == {a, b, c}
+        assert ids[0] == c  # newest
+
+    def test_respects_limit(self, conn):
+        from solo.db import fetch_all_entries, insert_entry
+
+        for i in range(5):
+            insert_entry(conn, f"t{i}", 1, i, "{}")
+        rows = fetch_all_entries(conn, limit=2)
+        assert len(rows) == 2
+
+
 class TestFetchActive:
     def test_returns_all_classified_active_rows(self, conn):
         from solo.db import apply_classification, fetch_active, insert_entry, mark_done
