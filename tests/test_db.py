@@ -174,6 +174,32 @@ class TestInsertEntry:
         row = conn.execute("SELECT created_at FROM entries WHERE id = ?", (row_id,)).fetchone()
         assert row[0] is not None
 
+    def test_insert_extracts_mentions(self, conn):
+        from solo.db import insert_entry
+
+        row_id = insert_entry(
+            conn,
+            raw_text="loop @alice and @bob on the doc",
+            telegram_chat_id=1,
+            telegram_message_id=1,
+            telegram_message_json="{}",
+        )
+        row = conn.execute("SELECT mentions FROM entries WHERE id=?", (row_id,)).fetchone()
+        assert row["mentions"] == "alice,bob"
+
+    def test_insert_with_no_mentions_stores_null(self, conn):
+        from solo.db import insert_entry
+
+        row_id = insert_entry(
+            conn,
+            raw_text="plain thought, no names",
+            telegram_chat_id=1,
+            telegram_message_id=1,
+            telegram_message_json="{}",
+        )
+        row = conn.execute("SELECT mentions FROM entries WHERE id=?", (row_id,)).fetchone()
+        assert row["mentions"] is None
+
 
 class TestGetRecentEntries:
     def test_returns_entries_newest_first(self, conn):

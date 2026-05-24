@@ -55,12 +55,24 @@ def insert_entry(
     telegram_message_id: int,
     telegram_message_json: str,
 ) -> int:
+    from solo import mentions as _mentions  # local import to avoid cycles
+
+    names = _mentions.extract(raw_text)
     cursor = conn.execute(
         """
-        INSERT INTO entries (raw_text, telegram_chat_id, telegram_message_id, telegram_message_json)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO entries (
+            raw_text, telegram_chat_id, telegram_message_id,
+            telegram_message_json, mentions
+        )
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (raw_text, telegram_chat_id, telegram_message_id, telegram_message_json),
+        (
+            raw_text,
+            telegram_chat_id,
+            telegram_message_id,
+            telegram_message_json,
+            ",".join(names) if names else None,
+        ),
     )
     conn.commit()
     return cursor.lastrowid
