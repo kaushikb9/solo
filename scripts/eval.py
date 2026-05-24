@@ -42,6 +42,9 @@ async def _run(model: str, prompt: str, jsonl_path: Path, db_path: Path) -> dict
         raise SystemExit("OPENROUTER_API_KEY is required")
 
     # Capture trace id watermark before/after so we aggregate only this run.
+    # LLMClient writes trace rows through its own short-lived sqlite connection
+    # (ADR-0004). Each _max_trace_id call below is a fresh statement on `conn`
+    # with no outer read txn, so it sees committed writes from those connections.
     conn = get_connection(str(db_path))
     ensure_schema(conn)
     id_before = _max_trace_id(conn)
@@ -91,10 +94,14 @@ async def _run(model: str, prompt: str, jsonl_path: Path, db_path: Path) -> dict
         }
     conn.close()
 
+    now = datetime.now(UTC)
     return {
         "model": model,
         "prompt": prompt,
-        "ts": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "ts": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # File-system-safe high-resolution stamp so two runs in the same
+        # wall-clock second don't collide on the sidecar filename.
+        "ts_file": now.strftime("%Y%m%dT%H%M%S_%f") + "Z",
         "elapsed_s": round(elapsed, 2),
         "aggregate": summarize(rows_out),
         "rows": rows_out,
@@ -107,12 +114,16 @@ def _print_table(report: dict) -> None:
     agg = report["aggregate"]
     trace = report["trace"]
     n = agg["total"]
+    err_n = len(report["errors"])
+    attempted = n + err_n
 
     print()
     print(
         f"Eval: {report['model']}  ·  {report['prompt']}  ·  {report['ts']}  ·  "
-        f"{n} rows  ·  {report['elapsed_s']}s"
+        f"{attempted} rows  ·  {report['elapsed_s']}s"
     )
+    if err_n:
+        print(f"        (scoring {n}; {err_n} rows raised and are excluded from rates)")
     print()
 
     def pct(x: float) -> str:
@@ -130,8 +141,8 @@ def _print_table(report: dict) -> None:
 
     print(f"Cost:      ${trace['total_cost_usd']:.4f}   Mean latency: {trace['mean_latency_ms']}ms")
 
-    if report["errors"]:
-        print(f"Errors:    {len(report['errors'])} (of {n + len(report['errors'])} attempted)")
+    if err_n:
+        print(f"Errors:    {err_n} (of {attempted} attempted)")
 
     if agg["confusion"]:
         kinds = ("idea", "soft_task", "hard_task", "note")
@@ -158,7 +169,7 @@ def main() -> None:
 
     out_dir = Path("evals/results")
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{report['ts'].replace(':', '')}.json"
+    out_path = out_dir / f"{report['ts_file']}.json"
     out_path.write_text(json.dumps(report, indent=2))
     print(f"\nWrote {out_path}")
 

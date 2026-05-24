@@ -195,6 +195,34 @@ class TestAggregateRange:
             "mean_latency_ms": 0,
         }
 
+    def test_aggregate_range_with_rows_present_but_out_of_range(self, conn):
+        from solo.trace import aggregate_range, ensure_schema, record_call
+
+        ensure_schema(conn)
+        record_call(
+            conn,
+            ts="2026-05-23T10:00:00Z",
+            model="minimax/minimax-m2.7",
+            prompt_name="classifier",
+            prompt_text="x",
+            response_text="y",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=0.0001,
+            latency_ms=100,
+            status="ok",
+            error=None,
+        )
+
+        # Row was inserted at id=1; query a range that excludes it.
+        out = aggregate_range(conn, id_min=999, id_max=1000)
+        assert out == {
+            "count": 0,
+            "errors": 0,
+            "total_cost_usd": 0.0,
+            "mean_latency_ms": 0,
+        }
+
     def test_aggregate_range_counts_errors(self, conn):
         from solo.trace import aggregate_range, ensure_schema, record_call
 
