@@ -13,7 +13,15 @@ from telegram.ext import (
     filters,
 )
 
-from solo.commands import handle_log, handle_top3
+from solo.commands import (
+    handle_all,
+    handle_done,
+    handle_drop,
+    handle_help,
+    handle_list,
+    handle_redo,
+    handle_top3,
+)
 from solo.db import get_connection, insert_entry
 from solo.llm import LLMClient
 from solo.trace import ensure_schema
@@ -75,20 +83,33 @@ def main() -> None:
 
     async def _top3(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await handle_top3(
-            update,
-            ctx,
-            conn=conn,
-            llm=llm,
-            model=model,
+            update, ctx, conn=conn, llm=llm, model=model,
             allowed_chats=allowed_chats,
         )
 
-    async def _log(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-        await handle_log(update, ctx, conn=conn, allowed_chats=allowed_chats)
+    async def _list(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_list(update, ctx, conn=conn, allowed_chats=allowed_chats)
+
+    async def _all(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_all(update, ctx, conn=conn, allowed_chats=allowed_chats)
+
+    async def _drop(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_drop(update, ctx, conn=conn, allowed_chats=allowed_chats)
+
+    async def _done(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_done(update, ctx, conn=conn, allowed_chats=allowed_chats)
+
+    async def _redo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_redo(update, ctx, conn=conn, allowed_chats=allowed_chats)
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _capture))
     app.add_handler(CommandHandler("top3", _top3))
-    app.add_handler(CommandHandler("log", _log))
+    app.add_handler(CommandHandler("list", _list))
+    app.add_handler(CommandHandler("all", _all))
+    app.add_handler(CommandHandler("drop", _drop))
+    app.add_handler(CommandHandler("done", _done))
+    app.add_handler(CommandHandler("redo", _redo))
+    app.add_handler(CommandHandler("help", handle_help))
 
     logger.info("Bot starting (long polling)...")
     app.run_polling()
