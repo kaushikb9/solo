@@ -667,3 +667,54 @@ class TestHandleDone:
         update = FakeUpdate(msg)
         await handle_done(update, FakeContextWithArgs([]), conn=db_conn)
         assert msg._replied == "usage: /done <id> [<id>...]"
+
+
+class TestHandleRedo:
+    @pytest.mark.asyncio
+    async def test_resets_classified_row_for_reclassification(self, db_conn):
+        from solo.commands import handle_redo
+        from solo.db import apply_classification, insert_entry
+
+        rid = insert_entry(db_conn, "x", 1, 1, "{}")
+        apply_classification(db_conn, rid, "idea", "wrong summary", "high")
+
+        msg = FakeMessage(f"/redo {rid}")
+        update = FakeUpdate(msg)
+        await handle_redo(update, FakeContextWithArgs([str(rid)]), conn=db_conn)
+
+        assert msg._replied == f"requeued {rid} for next /top3"
+        row = db_conn.execute(
+            "SELECT classified, kind, summary, priority FROM entries WHERE id=?",
+            (rid,),
+        ).fetchone()
+        assert row[0] == 0
+        assert row[1] is None
+        assert row[2] is None
+        assert row[3] is None
+
+    @pytest.mark.asyncio
+    async def test_no_args_returns_usage(self, db_conn):
+        from solo.commands import handle_redo
+
+        msg = FakeMessage("/redo")
+        update = FakeUpdate(msg)
+        await handle_redo(update, FakeContextWithArgs([]), conn=db_conn)
+        assert msg._replied == "usage: /redo <id>"
+
+    @pytest.mark.asyncio
+    async def test_multiple_args_returns_usage(self, db_conn):
+        from solo.commands import handle_redo
+
+        msg = FakeMessage("/redo 1 2")
+        update = FakeUpdate(msg)
+        await handle_redo(update, FakeContextWithArgs(["1", "2"]), conn=db_conn)
+        assert msg._replied == "usage: /redo <id>"
+
+    @pytest.mark.asyncio
+    async def test_unknown_id_replies_not_found(self, db_conn):
+        from solo.commands import handle_redo
+
+        msg = FakeMessage("/redo 9999")
+        update = FakeUpdate(msg)
+        await handle_redo(update, FakeContextWithArgs(["9999"]), conn=db_conn)
+        assert msg._replied == "id 9999 not found"

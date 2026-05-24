@@ -369,3 +369,37 @@ async def handle_done(
             await update.message.reply_text("sorry, /done failed — check logs")
         except Exception:
             logger.exception("/done fallback reply also failed")
+
+
+async def handle_redo(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    conn: sqlite3.Connection,
+    allowed_chats: set[int] | None = None,
+) -> None:
+    if not _allowed(update, allowed_chats):
+        return
+    try:
+        args = getattr(context, "args", None) or []
+        if len(args) != 1:
+            await update.message.reply_text("usage: /redo <id>")
+            return
+        try:
+            entry_id = int(args[0])
+        except ValueError:
+            await update.message.reply_text("usage: /redo <id>")
+            return
+
+        if db.reset_for_reclassification(conn, entry_id):
+            await update.message.reply_text(
+                f"requeued {entry_id} for next /top3"
+            )
+        else:
+            await update.message.reply_text(f"id {entry_id} not found")
+    except Exception:
+        logger.exception("/redo failed for chat=%d", update.effective_chat.id)
+        try:
+            await update.message.reply_text("sorry, /redo failed — check logs")
+        except Exception:
+            logger.exception("/redo fallback reply also failed")
