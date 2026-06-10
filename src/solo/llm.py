@@ -30,9 +30,9 @@ class SupportsStructured(Protocol):
 # Verified at openrouter.ai/models — update on drift.
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     # (input_per_1m_tokens_usd, output_per_1m_tokens_usd)
-    "minimax/minimax-m2.7":  (0.30, 1.20),
-    "moonshotai/kimi-k2.5":  (0.44, 2.00),
-    "moonshotai/kimi-k2.6":  (0.74, 3.49),
+    "minimax/minimax-m2.7": (0.30, 1.20),
+    "moonshotai/kimi-k2.5": (0.44, 2.00),
+    "moonshotai/kimi-k2.6": (0.74, 3.49),
 }
 
 

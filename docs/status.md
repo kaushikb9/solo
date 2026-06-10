@@ -6,7 +6,11 @@ Living doc. Update as part of any non-trivial change so the next agent (possibly
 
 ## Last updated
 
-**2026-05-24** — by Claude Code (Opus 4.7).
+**2026-06-10** — by Claude Code (Opus 4.7).
+
+## Open source status
+
+MIT-licensed. Ready for public use and contribution.
 
 ## Current state
 
@@ -33,17 +37,14 @@ Slice 6 manifest:
 - `docs/decisions/0008-mention-extraction-is-regex.md` — ADR-0008.
 - `docs/walkthrough.html` updated through slice 6.
 
-Pending manual verification:
-- Live classifier test against OpenRouter — `OPENROUTER_API_KEY=… uv run pytest tests/test_classifier_live.py -v`.
-- End-to-end smoke of all V0.1 commands against a live Telegram chat.
-- Real eval run: `OPENROUTER_API_KEY=… uv run python scripts/eval.py`.
+
 
 ## What's next
 
 1. ~~Telegram capture → SQLite~~ — done (slice 1)
 2. ~~`LLMClient` + `llm_calls` trace table~~ — done (slice 2)
 3. ~~Lazy classifier~~ — done (slice 3)
-4. ~~`/top` + `/log` commands~~ — done (slice 4)
+4. ~~`/top` + `/log` commands~~ — done (slice 4, `/log` later renamed to `/all`)
 5. ~~Classifier eval harness~~ — done (slice 5)
 6. ~~Admin surface (/list, /all, /drop, /done, /redo, /help) + visual refresh~~ — done (slice 6)
 7. **V1 — `/expand`**: the first hand-rolled agent loop, per `docs/architecture.md` §1/§3. Sub-slices likely: `agent_runs` + `agent_steps` tables, the loop itself, the `expand` prompt, the Telegram surface, evals for `expand` quality. Earns its own brainstorm + spec + plan cycle.

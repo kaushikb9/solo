@@ -4,9 +4,13 @@ Personal thinking companion. Captures raw thoughts via Telegram, surfaces what m
 
 This is also a **learn-by-building** project for getting fluent in AI engineering and agentic systems. Each implementation step is documented in `docs/concepts/` so the learning compounds.
 
+## License
+
+[MIT](LICENSE)
+
 ## Status
 
-**V0 complete.** Capture (`bot.py`), lazy classifier (`classifier.py`), `/top` and `/log` commands, `llm_calls` trace table, prompts-as-files, classifier eval harness (`scripts/eval.py`). V1 (`/expand` — first hand-rolled agent loop) is next.
+**V0.1 complete.** Capture (`bot.py`), lazy classifier (`classifier.py`), `/top`, `/list`, `/all`, `/done`, `/drop`, `/redo`, `/help` commands, `llm_calls` trace table, prompts-as-files, classifier eval harness (`scripts/eval.py`). V1 (`/expand` — first hand-rolled agent loop) is next.
 
 ## Read first
 
@@ -22,7 +26,7 @@ This is also a **learn-by-building** project for getting fluent in AI engineerin
 
 ## Stack
 
-Python 3.12 · `uv` · `python-telegram-bot` (long polling) · SQLite · OpenRouter · Pydantic. Currently deployed on local but can be hosted anywhere.
+Python 3.12 · `uv` · `python-telegram-bot` (long polling) · SQLite · OpenRouter · Pydantic. Deployed on [Railway](https://railway.com/), but can be hosted anywhere.
 
 ## Local dev
 
@@ -57,4 +61,4 @@ The author works across multiple setups: Claude Code (Opus 4.7) with the [superp
 
 ## V0 scope
 
-Capture (Telegram) → lazy classifier → `/top` and `/log`. Plus the agent-engineering hygiene that compounds: structured trace, prompts as files, classifier eval, concept docs.
+Capture (Telegram) → lazy classifier → `/top`, `/list`, `/all`, `/done`, `/drop`, `/redo`, `/help`. Plus the agent-engineering hygiene that compounds: structured trace, prompts as files, classifier eval, concept docs.

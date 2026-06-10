@@ -169,9 +169,7 @@ class TestStructured:
         return prompts
 
     @pytest.mark.asyncio
-    async def test_structured_returns_parsed_pydantic(
-        self, db_path, fake_prompts_dir, monkeypatch
-    ):
+    async def test_structured_returns_parsed_pydantic(self, db_path, fake_prompts_dir, monkeypatch):
         from solo.llm import LLMClient
 
         client = LLMClient(api_key="test-key", db_path=db_path)

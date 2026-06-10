@@ -114,7 +114,7 @@ This also weakens Railway's volume advantage and makes Cloudflare Workers a more
 
 1. SQLite schema + Telegram bot writing raw entries on every message
 2. Lazy classifier — runs on unclassified rows when `/top` is invoked
-3. `/top` and `/log` commands inside Telegram
+3. `/top`, `/list`, `/all`, `/done`, `/drop`, `/redo`, `/help` commands inside Telegram
 4. Structured trace table for every LLM call
 5. Prompts as files in `src/solo/prompts/`
 6. Eval harness for the classifier (`evals/classify.jsonl` + `scripts/eval.py`)
@@ -134,7 +134,7 @@ solo/
     llm.py              # LLMClient (OpenRouter)
     classifier.py       # Classification + summarization (single-shot)
     rank.py             # top ranking logic
-    commands.py         # /top, /log handlers
+    commands.py         # /top, /list, /all, /done, /drop, /redo, /help handlers
     trace.py            # llm_calls trace table writes
     prompts/
       classifier.md
@@ -148,7 +148,7 @@ solo/
     eval.py
   data/
     solo.db          # mounted volume in prod (V0); replaced by Turso later
-  railway.json
+  railway.json          # Railway deploy config (optional)
 ```
 
 ## 11. Open questions to revisit after V0

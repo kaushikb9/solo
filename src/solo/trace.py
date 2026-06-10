@@ -47,8 +47,17 @@ def record_call(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            ts, model, prompt_name, prompt_text, response_text,
-            input_tokens, output_tokens, cost_usd, latency_ms, status, error,
+            ts,
+            model,
+            prompt_name,
+            prompt_text,
+            response_text,
+            input_tokens,
+            output_tokens,
+            cost_usd,
+            latency_ms,
+            status,
+            error,
         ),
     )
     conn.commit()

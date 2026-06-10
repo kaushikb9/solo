@@ -85,7 +85,11 @@ def main() -> None:
 
     async def _top(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await handle_top(
-            update, ctx, conn=conn, llm=llm, model=model,
+            update,
+            ctx,
+            conn=conn,
+            llm=llm,
+            model=model,
             allowed_chats=allowed_chats,
         )
 
