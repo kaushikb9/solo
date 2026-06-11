@@ -50,6 +50,10 @@ Copy `.env.example` to `.env` and fill in:
 | `SOLO_CLASSIFY_MODEL` | yes (slice 3 onward) | Model used by the lazy classifier. Default `minimax/minimax-m2.7`. |
 | `SOLO_EXPAND_MODEL` | not in V0 | Model for V1 `expand`/`review`. Default `moonshotai/kimi-k2.6`. |
 | `SOLO_DB_PATH` | yes | Path to the SQLite file. Default `./data/solo.db`. |
+| `SOLO_SYNC_REPO` | no | Private GitHub repo used as the kbOS message bus (e.g. `kaushikb9/kb-sync`). Sync is disabled when unset. See ADR-0009. |
+| `SOLO_GITHUB_TOKEN` | no | Fine-grained PAT scoped to that repo only (Contents read/write). |
+| `SOLO_BRIEFING_HOUR` | no | Hour (0–23) to deliver the kbOS morning briefing. Default `8`. |
+| `SOLO_TZ` | no | Timezone for the briefing schedule. Default `Asia/Kolkata`. |
 
 `OPENROUTER_API_KEY` is the only model-API credential — solo routes everything through OpenRouter.
 

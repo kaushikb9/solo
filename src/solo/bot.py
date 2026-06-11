@@ -24,6 +24,7 @@ from solo.commands import (
 )
 from solo.db import get_connection, insert_entry
 from solo.llm import LLMClient
+from solo.sync import sync_from_env
 from solo.trace import ensure_schema
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,23 @@ def main() -> None:
 
     async def _help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await handle_help(update, ctx, allowed_chats=allowed_chats)
+
+    sync = sync_from_env()
+    if sync is not None and app.job_queue is not None:
+        from datetime import time as dtime
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo(os.environ.get("SOLO_TZ", "Asia/Kolkata"))
+        briefing_hour = int(os.environ.get("SOLO_BRIEFING_HOUR", "8"))
+
+        async def _flush_snapshot(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            await sync.flush(conn)
+
+        async def _morning_briefing(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            await sync.send_briefing(ctx.bot, allowed_chats)
+
+        app.job_queue.run_repeating(_flush_snapshot, interval=300, first=15)
+        app.job_queue.run_daily(_morning_briefing, time=dtime(hour=briefing_hour, tzinfo=tz))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _capture))
     app.add_handler(CommandHandler("top", _top))
