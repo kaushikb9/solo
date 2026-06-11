@@ -33,6 +33,7 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "minimax/minimax-m2.7": (0.30, 1.20),
     "moonshotai/kimi-k2.5": (0.44, 2.00),
     "moonshotai/kimi-k2.6": (0.74, 3.49),
+    "google/gemini-2.5-flash": (0.30, 2.50),
 }
 
 
@@ -66,9 +67,12 @@ class LLMClient:
         *,
         model: str,
         prompt_name: str | None = None,
+        trace_text: str | None = None,
     ) -> str:
         ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-        prompt_text = json.dumps(messages)
+        # trace_text overrides the traced prompt for multimodal calls, where
+        # dumping base64 media into llm_calls would bloat the table.
+        prompt_text = trace_text if trace_text is not None else json.dumps(messages)
         start = time.monotonic()
 
         try:
@@ -169,6 +173,68 @@ class LLMClient:
             error=None,
         )
         return parsed
+
+    async def describe_image(
+        self,
+        image_bytes: bytes,
+        *,
+        model: str,
+        mime: str = "image/jpeg",
+        caption: str | None = None,
+    ) -> str:
+        """One-shot vision call: returns a capture-ready description of a
+        photo/screenshot, including any legible text in it."""
+        import base64
+
+        from solo import prompts
+
+        instruction = prompts.render("describe_image", caption=caption or "(none)")
+        b64 = base64.b64encode(image_bytes).decode()
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": instruction},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+                ],
+            }
+        ]
+        return await self.chat(
+            messages,
+            model=model,
+            prompt_name="describe_image",
+            trace_text=f"{instruction}\n[image: {len(image_bytes)} bytes {mime}]",
+        )
+
+    async def transcribe_audio(
+        self,
+        audio_bytes: bytes,
+        *,
+        model: str,
+        fmt: str = "ogg",
+    ) -> str:
+        """One-shot transcription of a voice note via a multimodal chat model."""
+        import base64
+
+        from solo import prompts
+
+        instruction = prompts.load("transcribe_audio")
+        b64 = base64.b64encode(audio_bytes).decode()
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": instruction},
+                    {"type": "input_audio", "input_audio": {"data": b64, "format": fmt}},
+                ],
+            }
+        ]
+        return await self.chat(
+            messages,
+            model=model,
+            prompt_name="transcribe_audio",
+            trace_text=f"{instruction}\n[audio: {len(audio_bytes)} bytes {fmt}]",
+        )
 
     def _write_trace(self, **row) -> None:
         conn = get_connection(str(self._db_path))

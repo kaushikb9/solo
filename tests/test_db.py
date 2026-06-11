@@ -39,6 +39,9 @@ class TestSchema:
             "classification_attempts",
             "done",
             "mentions",
+            "source",
+            "media_path",
+            "media_synced",
         }
 
     def test_done_and_mentions_have_correct_defaults(self, conn):
@@ -100,6 +103,9 @@ class TestMigration:
             "classification_attempts",
             "done",
             "mentions",
+            "source",
+            "media_path",
+            "media_synced",
         }.issubset(cols)
 
         row = conn.execute(

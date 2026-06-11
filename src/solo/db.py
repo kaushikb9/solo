@@ -14,7 +14,16 @@ CREATE TABLE IF NOT EXISTS entries (
     priority TEXT,
     classification_attempts INTEGER NOT NULL DEFAULT 0,
     done INTEGER NOT NULL DEFAULT 0,
-    mentions TEXT
+    mentions TEXT,
+    source TEXT NOT NULL DEFAULT 'text',
+    media_path TEXT,
+    media_synced INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 """
 
@@ -31,6 +40,12 @@ def _migrate_entries(conn: sqlite3.Connection) -> None:
         ),
         ("done", "ALTER TABLE entries ADD COLUMN done INTEGER NOT NULL DEFAULT 0"),
         ("mentions", "ALTER TABLE entries ADD COLUMN mentions TEXT"),
+        ("source", "ALTER TABLE entries ADD COLUMN source TEXT NOT NULL DEFAULT 'text'"),
+        ("media_path", "ALTER TABLE entries ADD COLUMN media_path TEXT"),
+        (
+            "media_synced",
+            "ALTER TABLE entries ADD COLUMN media_synced INTEGER NOT NULL DEFAULT 0",
+        ),
     )
     for col, ddl in additions:
         if col not in cols:
@@ -54,6 +69,8 @@ def insert_entry(
     telegram_chat_id: int,
     telegram_message_id: int,
     telegram_message_json: str,
+    source: str = "text",
+    media_path: str | None = None,
 ) -> int:
     from solo import mentions as _mentions  # local import to avoid cycles
 
@@ -62,9 +79,9 @@ def insert_entry(
         """
         INSERT INTO entries (
             raw_text, telegram_chat_id, telegram_message_id,
-            telegram_message_json, mentions
+            telegram_message_json, mentions, source, media_path
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             raw_text,
@@ -72,10 +89,59 @@ def insert_entry(
             telegram_message_id,
             telegram_message_json,
             ",".join(names) if names else None,
+            source,
+            media_path,
         ),
     )
     conn.commit()
     return cursor.lastrowid
+
+
+def fetch_unsynced_media(conn: sqlite3.Connection, limit: int = 20) -> list[dict]:
+    cursor = conn.execute(
+        "SELECT * FROM entries WHERE media_path IS NOT NULL AND media_synced = 0 "
+        "ORDER BY id ASC LIMIT ?",
+        (limit,),
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def mark_media_synced(conn: sqlite3.Connection, entry_id: int) -> None:
+    conn.execute("UPDATE entries SET media_synced = 1 WHERE id = ?", (entry_id,))
+    conn.commit()
+
+
+def fetch_purgeable_media(conn: sqlite3.Connection, cutoff_iso: str) -> list[dict]:
+    """Media older than the cutoff that has already been synced upstream."""
+    cursor = conn.execute(
+        "SELECT * FROM entries WHERE media_path IS NOT NULL AND media_synced = 1 "
+        "AND created_at < ?",
+        (cutoff_iso,),
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def clear_media_path(conn: sqlite3.Connection, entry_id: int) -> None:
+    conn.execute("UPDATE entries SET media_path = NULL WHERE id = ?", (entry_id,))
+    conn.commit()
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    """Runtime-personal data (soul, cached briefing) lives here — in the DB on
+    the private volume — never in the repo or the codebase."""
+    conn.execute(
+        "INSERT INTO settings (key, value, updated_at) "
+        "VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+        "updated_at = excluded.updated_at",
+        (key, value),
+    )
+    conn.commit()
+
+
+def get_setting(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
 
 
 def get_recent_entries(conn: sqlite3.Connection, limit: int = 20) -> list[dict]:

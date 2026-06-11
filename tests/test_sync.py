@@ -81,7 +81,7 @@ def fake_github():
 
 
 def _sync(fake_github):
-    return SoloSync("kb/kb-sync", "tok", transport=httpx.MockTransport(fake_github.handler))
+    return SoloSync("acme/brain-sync", "tok", transport=httpx.MockTransport(fake_github.handler))
 
 
 @pytest.mark.asyncio
@@ -113,7 +113,7 @@ async def test_flush_swallows_network_errors(conn):
     def boom(request):
         raise httpx.ConnectError("down")
 
-    sync = SoloSync("kb/kb-sync", "tok", transport=httpx.MockTransport(boom))
+    sync = SoloSync("acme/brain-sync", "tok", transport=httpx.MockTransport(boom))
     _seed(conn, "task", kind="soft_task", summary="Task")
     assert await sync.flush(conn) is False
 
@@ -125,5 +125,71 @@ async def test_fetch_briefing_returns_none_when_missing(fake_github):
 
 @pytest.mark.asyncio
 async def test_fetch_briefing_returns_text(fake_github):
-    fake_github.files[BRIEFING_PATH] = "Focus today: therapy homework.\n"
-    assert await _sync(fake_github).fetch_briefing() == "Focus today: therapy homework."
+    fake_github.files[BRIEFING_PATH] = "Focus today: file the quarterly report.\n"
+    assert await _sync(fake_github).fetch_briefing() == "Focus today: file the quarterly report."
+
+
+@pytest.mark.asyncio
+async def test_push_media_uploads_and_marks_synced(conn, fake_github, tmp_path):
+    photo = tmp_path / "p.jpg"
+    photo.write_bytes(b"jpegdata")
+    entry_id = db.insert_entry(
+        conn,
+        raw_text="a photo",
+        telegram_chat_id=1,
+        telegram_message_id=1,
+        telegram_message_json="{}",
+        source="photo",
+        media_path=str(photo),
+    )
+    sync = _sync(fake_github)
+    assert await sync.push_media(conn) == 1
+    assert any(k.startswith("from-solo/media/") for k in fake_github.files)
+    assert db.fetch_unsynced_media(conn) == []
+    # second pass is a no-op
+    assert await sync.push_media(conn) == 0
+    assert entry_id  # silence unused warning
+
+
+@pytest.mark.asyncio
+async def test_push_media_handles_missing_file(conn, fake_github):
+    db.insert_entry(
+        conn,
+        raw_text="ghost",
+        telegram_chat_id=1,
+        telegram_message_id=1,
+        telegram_message_json="{}",
+        source="photo",
+        media_path="/nonexistent/file.jpg",
+    )
+    sync = _sync(fake_github)
+    assert await sync.push_media(conn) == 0
+    assert db.fetch_unsynced_media(conn) == []  # marked synced to stop retries
+
+
+@pytest.mark.asyncio
+async def test_fetch_soul_persists_to_settings_and_survives_outage(conn, fake_github):
+    from solo.sync import SOUL_PATH
+
+    fake_github.files[SOUL_PATH] = "You know the user.\n"
+    sync = _sync(fake_github)
+    assert await sync.fetch_soul(conn) == "You know the user."
+    # soul is persisted in the DB, not just process memory
+    assert db.get_setting(conn, "soul") == "You know the user."
+    # network dies; the stored soul survives (even for a fresh SoloSync)
+    del fake_github.files[SOUL_PATH]
+    fresh = _sync(fake_github)
+    assert await fresh.fetch_soul(conn) == "You know the user."
+
+
+def test_render_body_marks_media_sources(conn):
+    db.insert_entry(
+        conn,
+        raw_text="whiteboard sketch of eval pipeline",
+        telegram_chat_id=1,
+        telegram_message_id=1,
+        telegram_message_json="{}",
+        source="photo",
+        media_path="/tmp/x.jpg",
+    )
+    assert "📷 whiteboard sketch" in render_body(conn)

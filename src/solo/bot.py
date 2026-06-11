@@ -13,6 +13,9 @@ from telegram.ext import (
     filters,
 )
 
+from solo import media
+from solo.capture import handle_photo, handle_voice
+from solo.coach import handle_coach, handle_soul
 from solo.commands import (
     handle_all,
     handle_done,
@@ -112,24 +115,65 @@ def main() -> None:
     async def _help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await handle_help(update, ctx, allowed_chats=allowed_chats)
 
+    media_dir = Path(os.environ.get("SOLO_MEDIA_DIR", "./data/media"))
+    vision_model = os.environ.get("SOLO_VISION_MODEL", "google/gemini-2.5-flash")
+    audio_model = os.environ.get("SOLO_AUDIO_MODEL", "google/gemini-2.5-flash")
+    coach_model = os.environ.get("SOLO_EXPAND_MODEL", "moonshotai/kimi-k2.6")
+    retention_days = int(os.environ.get("SOLO_MEDIA_RETENTION_DAYS", "7"))
+
     sync = sync_from_env()
-    if sync is not None and app.job_queue is not None:
+
+    async def _photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_photo(
+            update, ctx, conn=conn, llm=llm, media_dir=media_dir,
+            model=vision_model, allowed_chats=allowed_chats,
+        )
+
+    async def _voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_voice(
+            update, ctx, conn=conn, llm=llm, media_dir=media_dir,
+            model=audio_model, allowed_chats=allowed_chats,
+        )
+
+    async def _coach(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_coach(
+            update, ctx, conn=conn, llm=llm, sync=sync,
+            model=coach_model, allowed_chats=allowed_chats,
+        )
+
+    async def _soul(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await handle_soul(update, ctx, conn=conn, sync=sync, allowed_chats=allowed_chats)
+
+    if app.job_queue is not None:
         from datetime import time as dtime
         from zoneinfo import ZoneInfo
 
         tz = ZoneInfo(os.environ.get("SOLO_TZ", "Asia/Kolkata"))
         briefing_hour = int(os.environ.get("SOLO_BRIEFING_HOUR", "8"))
 
-        async def _flush_snapshot(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-            await sync.flush(conn)
+        async def _purge_media(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            media.purge_expired(conn, retention_days=retention_days)
 
-        async def _morning_briefing(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-            await sync.send_briefing(ctx.bot, allowed_chats)
+        app.job_queue.run_daily(_purge_media, time=dtime(hour=3, tzinfo=tz))
 
-        app.job_queue.run_repeating(_flush_snapshot, interval=300, first=15)
-        app.job_queue.run_daily(_morning_briefing, time=dtime(hour=briefing_hour, tzinfo=tz))
+        if sync is not None:
+
+            async def _flush_snapshot(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+                await sync.flush(conn)
+
+            async def _morning_briefing(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+                await sync.send_briefing(ctx.bot, allowed_chats)
+
+            app.job_queue.run_repeating(_flush_snapshot, interval=300, first=15)
+            app.job_queue.run_daily(
+                _morning_briefing, time=dtime(hour=briefing_hour, tzinfo=tz)
+            )
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _capture))
+    app.add_handler(MessageHandler(filters.PHOTO, _photo))
+    app.add_handler(MessageHandler(filters.VOICE, _voice))
+    app.add_handler(CommandHandler("coach", _coach))
+    app.add_handler(CommandHandler("soul", _soul))
     app.add_handler(CommandHandler("top", _top))
     app.add_handler(CommandHandler("list", _list))
     app.add_handler(CommandHandler("all", _all))

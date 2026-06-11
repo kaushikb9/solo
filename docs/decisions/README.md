@@ -38,3 +38,5 @@ Length: ~250 words. The point is recording *why*, not exhaustive prose.
 - [0006 — Skip auto-grading the classifier `summary` field in evals](0006-skip-summary-auto-grading.md)
 - [0007 — `/drop` is a hard delete; `/done` is the soft-state half](0007-drop-is-hard-delete.md)
 - [0008 — `@name` extraction is a regex at insert time, not an LLM-inferred field](0008-mention-extraction-is-regex.md)
+- [0009 — Brain sync goes through a GitHub repo, not an API](0009-brain-sync-via-github-repo.md)
+- [0010 — solo 2.0: multimodal capture, 7-day media retention, the soul](0010-multimodal-capture-and-soul.md)

@@ -391,8 +391,12 @@ async def handle_redo(
 
 
 _HELP_TEXT = (
+    "Capture: send text, a photo/screenshot, or a voice note — anything.\n"
+    "\n"
     "Commands:\n"
     "/top  — your top items right now (usually 3)\n"
+    "/coach — soul-informed take on what deserves focus\n"
+    "/soul  — show the current soul (synced from your brain system)\n"
     "/list  — all active items, with IDs\n"
     "/all   — everything (active + done)\n"
     "/drop <id> [<id>...]  — hard delete\n"
